@@ -1054,7 +1054,11 @@ function refreshBookingModal(){
         ${has? ' · net '+(net<0?'<span class="var-pos">▼ '+fmtEUR(Math.abs(net))+' saving</span>':'<span class="var-neg">▲ '+fmtEUR(net)+' loss</span>'):''}
         · last update ${esc(b.updatedBy||'—')} ${b.updatedAt? new Date(b.updatedAt).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}):''}</div>
       </div>
-      <button class="close-x" onclick="closeModal()">✕</button>
+      <span style="display:flex;gap:8px;align-items:flex-start">
+        <button class="btn ghost small" onclick="bookingSummary('${esc(b.id)}')">Booking summary (PDF)</button>
+        <button class="btn ghost small" onclick="emailSummary('${esc(b.id)}')">Email summary</button>
+        <button class="close-x" onclick="closeModal()">✕</button>
+      </span>
     </div>
 
     <div class="field-grid">
@@ -2063,6 +2067,111 @@ function repairDirectory(){
   alert(fixed ? 'Repaired '+fixed+' supplier records — names, phones and emails are now in the correct columns.' : 'Nothing to repair — all records look clean.');
   if (fixed) logActivity('-', 'Directory data repair: '+fixed+' records fixed');
   renderDirectory();
+}
+
+/* ================= BOOKING SUMMARY PDF & EMAIL ================= */
+function bookingSummary(id){
+  const b = getBooking(id);
+  if (!b) return;
+  const band = tband(b);
+  const act = activeComps(b);
+  const done = act.filter(c=>c.status==='Confirmed'||c.status==='Reconfirmed').length;
+  let net=0, has=false;
+  act.forEach(c=>{ const v=compVariance(c); if(v){ net+=v.eur; has=true; } });
+  const timeline = state.activity.filter(e=>e.ref===b.fileNo).slice(0,120).reverse();
+  const atts = Object.values(state.attachments).filter(a=>a.bookingId===b.id);
+  const euro = v => (v<0?'-':'')+'\u20AC'+Math.abs(v).toLocaleString('en-GB',{maximumFractionDigits:0});
+  const chip = s => `<span class="st st-${s.toLowerCase()}">${s}</span>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html lang="en-GB"><head><meta charset="UTF-8">
+  <title>ORN Booking Summary ${esc(b.fileNo)}</title>
+  <style>
+    body{font-family:'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;color:#1d2433;margin:32px;font-size:12px;line-height:1.5}
+    h1{font-size:20px;margin:0} .sub{color:#5f6880;font-size:11.5px;margin-bottom:16px}
+    h2{font-size:13px;color:#a9801e;text-transform:uppercase;letter-spacing:1px;margin:20px 0 8px;border-bottom:1px solid #e6e9ef;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;margin-bottom:4px}
+    th{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#5f6880;text-align:left;padding:5px 7px;border-bottom:2px solid #d5dae3}
+    td{padding:5px 7px;border-bottom:1px solid #eceff4;vertical-align:top}
+    .grid{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+    .box{border:1px solid #e6e9ef;border-radius:8px;padding:8px 12px;min-width:130px}
+    .l{font-size:9.5px;text-transform:uppercase;letter-spacing:.8px;color:#5f6880}
+    .v{font-weight:700;font-size:12.5px}
+    .st{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap}
+    .st-reconfirmed,.st-confirmed{background:#e5f5ea;color:#2c9e51}
+    .st-pending{background:#fbf1dc;color:#c4890c}
+    .st-cancelled{background:#eef0f4;color:#9aa2b5;text-decoration:line-through}
+    .st-issue{background:#fbe4df;color:#cc3a24}
+    .six{color:#5f6880;font-size:10.5px}
+    .pos{color:#2c9e51;font-weight:700}.neg{color:#cc3a24;font-weight:700}
+    .tl td{font-size:10.5px;color:#3a4256}
+    .foot{color:#9aa2b5;font-size:10px;margin-top:24px}
+    @media print{ body{margin:10mm} .noprint{display:none} }
+  </style></head><body>
+  <div class="noprint" style="background:#fdf6e3;border:1px solid #a9801e;border-radius:8px;padding:10px 14px;margin-bottom:14px">
+    Press <b>Ctrl/Cmd + P</b> \u2192 <b>Save as PDF</b>, then attach to your email. <button onclick="window.print()">Print / Save PDF</button></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div><h1>Booking Summary \u00B7 ${esc(b.fileNo)}</h1>
+    <div class="sub">${esc(b.source)} file \u00B7 ${fmtDate(b.tripStart)} \u2013 ${fmtDate(b.tripEnd)} \u00B7 status: ${band.label} \u00B7 generated ${new Date().toLocaleString('en-GB')} by ${esc(state.user?state.user.name:'')}</div></div>
+    <div style="text-align:right;font-weight:800;font-size:18px;letter-spacing:4px">ORN<div style="font-size:9px;letter-spacing:2px;color:#a9801e;font-weight:700">QUALITY CONTROL &amp; BOOKING MANAGEMENT</div></div>
+  </div>
+
+  <h2>Booking details</h2>
+  <div class="grid">
+    <div class="box"><div class="l">Pax</div><div class="v">${esc(b.pax||'\u2014')}</div></div>
+    <div class="box"><div class="l">Contact</div><div class="v">${esc(b.contact||'\u2014')}</div></div>
+    <div class="box"><div class="l">Attached trips</div><div class="v">${esc(b.attachedTrips||'None')}</div></div>
+    <div class="box"><div class="l">Components confirmed</div><div class="v">${done} of ${act.length}</div></div>
+    ${has?`<div class="box"><div class="l">Net rate position</div><div class="v ${net<0?'pos':'neg'}">${net<0?euro(-net)+' saving':euro(net)+' loss'}</div></div>`:''}
+  </div>
+
+  <h2>Components &amp; reconfirmation status (${b.components.length})</h2>
+  <table>
+    <tr><th>Date</th><th>Service</th><th>Activity</th><th>Supplier</th><th>Ref</th><th>Pick up</th><th>Status</th><th>6-point reconfirmation</th></tr>
+    ${b.components.map(c=>{
+      const sp = c.sixPoint||{};
+      const six = sixPointComplete(c)
+        ? `<span class="six">Operator: ${esc(sp.operator)} \u00B7 Tel: ${esc(sp.phone)} \u00B7 Conf: ${esc(sp.confirmation)} \u00B7 ${esc(sp.time)} \u00B7 ${esc(sp.location)}${sp.notes?' \u00B7 '+esc(sp.notes):''}</span>`
+        : (c.status==='Cancelled' ? '<span class="six">\u2014</span>' : '<span class="six" style="color:#c4890c">incomplete</span>');
+      return `<tr><td style="white-space:nowrap">${fmtDate(c.travelDate)}</td><td>${esc(c.service)}</td>
+        <td>${esc((c.activity||'').slice(0,70))}</td><td>${esc((c.supplier||'').slice(0,34))}</td>
+        <td>${esc((c.bookingRef||'').slice(0,20))}</td><td>${esc(c.pickupTime||'')}</td>
+        <td>${chip(c.status)}</td><td>${six}</td></tr>`;
+    }).join('')}
+  </table>
+
+  ${(b.comments||[]).length?`<h2>Comments</h2><table>${b.comments.map(cm=>`<tr><td style="white-space:nowrap;width:150px">${new Date(cm.ts).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'})} \u00B7 <b>${esc(cm.who)}</b></td><td>${esc(cm.text)}</td></tr>`).join('')}</table>`:''}
+
+  ${atts.length?`<h2>Attachments on file (${atts.length})</h2><table>${atts.map(a=>`<tr><td>${esc(a.name)}</td><td style="width:220px">${Math.round(a.size/1024)} KB \u00B7 uploaded by ${esc(a.by)} \u00B7 ${new Date(a.ts).toLocaleDateString('en-GB')}</td></tr>`).join('')}</table>`:''}
+
+  <h2>Activity timeline (${timeline.length})</h2>
+  <table class="tl">
+    ${timeline.map(e=>`<tr><td style="white-space:nowrap;width:150px">${new Date(e.ts).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'})}</td><td style="width:56px"><b>${esc(e.user)}</b></td><td>${esc(e.action)}</td></tr>`).join('') || '<tr><td>No recorded activity for this file yet.</td></tr>'}
+  </table>
+
+  <div class="foot">ORN Operations &amp; Reconfirmation Hub \u00B7 this summary reflects the live system at the time of generation \u00B7 confidential</div>
+  <script>setTimeout(()=>{ try{window.print()}catch(e){} }, 400);<\/script>
+  </body></html>`);
+  w.document.close();
+  logActivity(b.fileNo, 'Booking summary PDF generated');
+}
+
+function emailSummary(id){
+  const b = getBooking(id);
+  if (!b) return;
+  const to = prompt('Send booking confirmation to (email address):', b.source==='USA' ? '' : '');
+  if (to===null) return;
+  const act = activeComps(b);
+  const done = act.filter(c=>c.status==='Confirmed'||c.status==='Reconfirmed').length;
+  const subject = 'Booking Confirmation '+b.fileNo+' \u2013 ORN Quality Control ('+fmtDate(b.tripStart)+' \u2013 '+fmtDate(b.tripEnd)+')';
+  const body = 'Hello,\n\nPlease find attached the booking summary for file '+b.fileNo+' ('+(b.pax||'')+').\n\n'
+    +'Trip dates: '+fmtDate(b.tripStart)+' \u2013 '+fmtDate(b.tripEnd)+'\n'
+    +'Components confirmed: '+done+' of '+act.length+'\n\n'
+    +'All components have been reconfirmed with suppliers as detailed in the attached PDF, including operator contacts, confirmation numbers, times and pick-up locations.\n\n'
+    +'Best regards,\n'+(state.user?state.user.name:'')+'\nORN \u00B7 Quality Control & Booking Management';
+  bookingSummary(id); // generate the PDF alongside so they can save & attach
+  window.location.href = 'mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+  logActivity(b.fileNo, 'Confirmation email drafted'+(to?' to '+to:''));
 }
 
 /* ================= USER GUIDE ================= */
