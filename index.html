@@ -1700,7 +1700,7 @@ function uploadReceipt(txnId){
 
 /* ================= UNIFIED SUPPLIER DIRECTORY (confidential) ================= */
 const DIR_CATS = ['Activity supplier','Transfer company','Driver','DMC','Portal login','Hotel platform','Pipeline','Target list'];
-let dirFilters = { q:'', cat:'', dest:'', src:'' };
+let dirFilters = { q:'', cat:'', dest:'', src:'', login:'', sort:'name', dir:1 };
 let dirReveal = new Set();
 
 function dirUnlocked(){ return sessionStorage.getItem('ornrecon_dirok')==='1'; }
@@ -1732,39 +1732,110 @@ function renderDirectory(){
   if (f.cat) rows = rows.filter(r=>r.category===f.cat);
   if (f.dest) rows = rows.filter(r=>(r.destination||'').toLowerCase().includes(f.dest.toLowerCase()));
   if (f.src) rows = rows.filter(r=>r.source===f.src);
+  if (f.login==='yes') rows = rows.filter(r=>r.username||r.password);
+  if (f.login==='no') rows = rows.filter(r=>!r.username&&!r.password);
   if (f.q){
     const q = f.q.toLowerCase();
     rows = rows.filter(r=>[r.name,r.contact,r.email,r.phone,r.website,r.notes,r.destination,r.username,r.account,r.commission,r.api].join(' ').toLowerCase().includes(q));
   }
-  rows.sort((a,z)=>a.name.localeCompare(z.name));
+  const key = f.sort;
+  rows.sort((a,z)=>String(a[key]||'').localeCompare(String(z[key]||''))*f.dir || a.name.localeCompare(z.name));
+  const arrow = k => f.sort===k ? (f.dir===1?' ▲':' ▼') : '';
 
   el.innerHTML = `
     <div class="flex-between" style="margin-bottom:6px">
       <div><h2 class="vtitle">Suppliers <span class="badge bdone" style="vertical-align:middle">Confidential</span></h2>
-      <div class="vsub">${rows.length} of ${state.directory.length} suppliers · consolidated from Supplier Master, Activities/Transfers/DMC lists, Yukti's &amp; Jonna's lists, EU Ops log-ins, drivers &amp; hotel platforms</div></div>
+      <div class="vsub">${rows.length} of ${state.directory.length} suppliers · click a column heading to sort · Open for full details &amp; logins</div></div>
       <span>${state.user && state.user.role==='admin' ? '<button class="btn ghost small" onclick="importMissingDirectory()">Sync from master seed</button>':''}
       <button class="btn ghost small" onclick="sessionStorage.removeItem('ornrecon_dirok');renderDirectory()">Lock</button>
       <button class="btn" onclick="addDirEntry()">+ New supplier</button></span>
     </div>
     <div class="toolbar">
-      <input type="search" placeholder="Search name, contact, email, notes…" value="${esc(f.q)}" oninput="dirFilters.q=this.value;renderDirectory()">
+      <input type="search" placeholder="Search anything — name, contact, email, notes, login…" value="${esc(f.q)}" oninput="dirFilters.q=this.value;renderDirectory()">
       <select onchange="dirFilters.cat=this.value;renderDirectory()">
-        <option value="">All categories</option>
+        <option value="">All types</option>
         ${DIR_CATS.map(c=>`<option ${f.cat===c?'selected':''}>${c}</option>`).join('')}
       </select>
-      <input list="dirDests" placeholder="Destination / country" style="max-width:190px" value="${esc(f.dest)}" oninput="dirFilters.dest=this.value;renderDirectory()">
-      <datalist id="dirDests">${dests.slice(0,300).map(d=>`<option value="${esc(d)}">`).join('')}</datalist>
+      <input list="dirDests" placeholder="Destination / country" style="max-width:180px" value="${esc(f.dest)}" oninput="dirFilters.dest=this.value;renderDirectory()">
+      <datalist id="dirDests">${dests.slice(0,300).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+      <select onchange="dirFilters.login=this.value;renderDirectory()">
+        <option value="">Login: any</option>
+        <option value="yes" ${f.login==='yes'?'selected':''}>Has login</option>
+        <option value="no" ${f.login==='no'?'selected':''}>No login</option>
+      </select>
       <select onchange="dirFilters.src=this.value;renderDirectory()">
         <option value="">All sources</option>
         ${srcs.map(s=>`<option ${f.src===s?'selected':''}>${s}</option>`).join('')}
       </select>
-      ${(f.q||f.cat||f.dest||f.src)?'<button class="btn ghost small" onclick="dirFilters={q:\'\',cat:\'\',dest:\'\',src:\'\'};renderDirectory()">Clear</button>':''}
+      ${(f.q||f.cat||f.dest||f.src||f.login)?`<button class="btn ghost small" onclick="dirFilters={q:'',cat:'',dest:'',src:'',login:'',sort:'name',dir:1};renderDirectory()">Clear</button>`:''}
     </div>
-    ${rows.slice(0,400).map(dirCard).join('') || '<div class="empty">No suppliers match these filters.</div>'}
-    ${rows.length>400?'<div class="hint">Showing first 400 — narrow the filters to see the rest.</div>':''}`;
+    <div class="tbl-scroll"><table class="bk static">
+      <thead><tr>
+        <th style="cursor:pointer" onclick="dirSort('name')">Name${arrow('name')}</th>
+        <th style="cursor:pointer" onclick="dirSort('destination')">Destination${arrow('destination')}</th>
+        <th style="cursor:pointer" onclick="dirSort('category')">Type${arrow('category')}</th>
+        <th>Phone</th><th>Email</th><th>Login</th><th></th>
+      </tr></thead>
+      <tbody>${rows.slice(0,500).map(r=>`<tr>
+        <td style="min-width:170px"><b>${esc(r.name)}</b>${r.contact?`<div class="hint">${esc(r.contact)}</div>`:''}</td>
+        <td style="max-width:180px">${esc((r.destination||'—').slice(0,48))}</td>
+        <td><span class="chip svc">${esc(r.category)}</span></td>
+        <td style="white-space:nowrap">${esc(r.phone||'—')}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${esc((r.email||'—').split(String.fromCharCode(10))[0].slice(0,44))}</td>
+        <td>${(r.username||r.password)?'<span class="badge bdone">yes</span>':'<span style="color:var(--faint)">—</span>'}</td>
+        <td><button class="btn ghost small" onclick="openDirModal('${r.id}')">Open</button></td>
+      </tr>`).join('') || '<tr><td colspan="7" class="empty">No suppliers match these filters.</td></tr>'}</tbody>
+    </table></div>
+    ${rows.length>500?'<div class="hint">Showing first 500 — narrow the filters to see the rest.</div>':''}`;
+}
+
+function dirSort(k){
+  if (dirFilters.sort===k) dirFilters.dir*=-1; else { dirFilters.sort=k; dirFilters.dir=1; }
+  renderDirectory();
+}
+
+function openDirModal(id){
+  const r = state.directory.find(x=>x.id===id);
+  if (!r) return;
+  openBookingId = null;
+  const show = dirReveal.has(id);
+  document.getElementById('modalBox').innerHTML = `
+    <div class="modal-head">
+      <div><h2>${esc(r.name)} <span class="chip svc">${esc(r.category)}</span></h2>
+      <div class="meta">${esc(r.destination||'')} · source: ${esc(r.source||'manual')}</div></div>
+      <button class="close-x" onclick="closeModal()">✕</button>
+    </div>
+    <div class="field-grid">
+      <div><label>Name</label><input value="${esc(r.name)}" onchange="editDir('${id}','name',this.value)"></div>
+      <div><label>Type</label><select onchange="editDir('${id}','category',this.value)">${DIR_CATS.map(c=>`<option ${r.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div><label>Destination / coverage</label><input value="${esc(r.destination)}" onchange="editDir('${id}','destination',this.value)"></div>
+      <div><label>Contact person</label><input value="${esc(r.contact)}" onchange="editDir('${id}','contact',this.value)"></div>
+    </div>
+    <div class="field-grid">
+      <div><label>Phone</label><input value="${esc(r.phone)}" onchange="editDir('${id}','phone',this.value)"></div>
+      <div><label>Email</label><input value="${esc(r.email)}" onchange="editDir('${id}','email',this.value)"></div>
+      <div><label>Website / portal URL</label><input value="${esc(r.website)}" onchange="editDir('${id}','website',this.value)"></div>
+      <div><label>API / integration</label><input value="${esc(r.api)}" onchange="editDir('${id}','api',this.value)"></div>
+    </div>
+    <div class="section-lbl">Login &amp; commercial</div>
+    <div class="field-grid">
+      <div><label>Username / ID</label><input value="${esc(r.username)}" onchange="editDir('${id}','username',this.value)"></div>
+      <div><label>Password</label>${show
+        ? `<input class="pw-cell" value="${esc(r.password)}" onchange="editDir('${id}','password',this.value)">`
+        : `<div style="display:flex;gap:8px;align-items:center"><span class="pw-cell" style="padding-top:6px">${r.password?'•••••••':'—'}</span><button class="btn ghost small" onclick="dirReveal.add('${id}');openDirModal('${id}')">Show</button></div>`}</div>
+      <div><label>Account / Nexus ID</label><input value="${esc(r.account)}" onchange="editDir('${id}','account',this.value)"></div>
+      <div><label>Commission</label><input value="${esc(r.commission)}" onchange="editDir('${id}','commission',this.value)"></div>
+    </div>
+    <div class="fld"><label>Notes</label><textarea rows="4" onchange="editDir('${id}','notes',this.value)">${esc(r.notes)}</textarea></div>
+    <div class="flex-between" style="margin-top:14px">
+      <button class="btn danger small" onclick="delDirEntry('${id}');closeModal()">Delete supplier</button>
+      <button class="btn ghost small" onclick="dirReveal.delete('${id}');closeModal()">Close</button>
+    </div>`;
+  document.getElementById('modalBack').classList.add('open');
 }
 
 function dirCard(r){
+
   const open = dirReveal.has(r.id);
   return `<div class="comp ${open?'open':''}">
     <div class="comp-head" onclick="dirToggle('${r.id}')">
@@ -1816,9 +1887,9 @@ function addDirEntry(){
   const r = {name:'New supplier', category:'Activity supplier', destination:'', contact:'', phone:'', email:'',
     website:'', username:'', password:'', account:'', commission:'', api:'', notes:'', source:'manual'};
   saveListItem('directory', r);
-  dirReveal.add(r.id);
   logActivity('-', 'Supplier added to directory');
   renderDirectory();
+  openDirModal(r.id);
 }
 function delDirEntry(id){
   const r = state.directory.find(x=>x.id===id);
