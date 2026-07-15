@@ -2159,20 +2159,100 @@ function bookingSummary(id){
 function emailSummary(id){
   const b = getBooking(id);
   if (!b) return;
-  const to = prompt('Send booking confirmation to (email address):', b.source==='USA' ? '' : '');
+  const client = localStorage.getItem('ornrecon_mailclient');
+  if (!client){ chooseMailClient(()=>emailSummary(id)); return; }
+  const to = prompt('Send booking confirmation to (email address):','');
   if (to===null) return;
+
   const act = activeComps(b);
   const done = act.filter(c=>c.status==='Confirmed'||c.status==='Reconfirmed').length;
-  const subject = 'Booking Confirmation '+b.fileNo+' \u2013 ORN Quality Control ('+fmtDate(b.tripStart)+' \u2013 '+fmtDate(b.tripEnd)+')';
-  const body = 'Hello,\n\nPlease find attached the booking summary for file '+b.fileNo+' ('+(b.pax||'')+').\n\n'
-    +'Trip dates: '+fmtDate(b.tripStart)+' \u2013 '+fmtDate(b.tripEnd)+'\n'
-    +'Components confirmed: '+done+' of '+act.length+'\n\n'
-    +'All components have been reconfirmed with suppliers as detailed in the attached PDF, including operator contacts, confirmation numbers, times and pick-up locations.\n\n'
-    +'Best regards,\n'+(state.user?state.user.name:'')+'\nORN \u00B7 Quality Control & Booking Management';
-  bookingSummary(id); // generate the PDF alongside so they can save & attach
-  window.location.href = 'mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-  logActivity(b.fileNo, 'Confirmation email drafted'+(to?' to '+to:''));
+  let net=0, has=false;
+  act.forEach(c=>{ const v=compVariance(c); if(v){ net+=v.eur; has=true; } });
+  const euro = v => (v<0?'-':'')+'EUR '+Math.abs(v).toLocaleString('en-GB',{maximumFractionDigits:0});
+
+  const lines = [];
+  lines.push('BOOKING CONFIRMATION - '+b.fileNo+' ('+b.source+')');
+  lines.push('Pax: '+(b.pax||'-'));
+  lines.push('Trip dates: '+fmtDate(b.tripStart)+' - '+fmtDate(b.tripEnd));
+  lines.push('Components confirmed: '+done+' of '+act.length + (has? ' | Net rate position: '+(net<0? euro(-net)+' saving' : euro(net)+' loss') : ''));
+  lines.push('');
+  lines.push('COMPONENTS & RECONFIRMATION DETAILS');
+  lines.push('------------------------------------');
+  b.components.forEach((c,i)=>{
+    const sp = c.sixPoint||{};
+    lines.push((i+1)+'. '+fmtDate(c.travelDate)+' | '+c.service+' | '+(c.activity||''));
+    lines.push('   Supplier: '+(c.supplier||'-')+' | Ref: '+(c.bookingRef||'-')+(c.pickupTime?' | Pick up: '+c.pickupTime:'')+' | Status: '+c.status);
+    if (sixPointComplete(c)){
+      lines.push('   Reconfirmed with: '+sp.operator+' | Tel: '+sp.phone+' | Conf no: '+sp.confirmation+' | Time: '+sp.time+' | Location: '+sp.location+(sp.notes?' | '+sp.notes:''));
+    } else if (c.status!=='Cancelled'){
+      lines.push('   Reconfirmation details: to follow');
+    }
+    lines.push('');
+  });
+  const recentComments = (b.comments||[]).slice(-5);
+  if (recentComments.length){
+    lines.push('RECENT NOTES');
+    recentComments.forEach(cm=>lines.push('- '+new Date(cm.ts).toLocaleDateString('en-GB')+' '+cm.who+': '+cm.text));
+    lines.push('');
+  }
+  lines.push('This confirmation was generated from the ORN Operations & Reconfirmation Hub, where the full audit timeline for this file is held.');
+  lines.push('');
+  lines.push('Best regards,');
+  lines.push(state.user?state.user.name:'');
+  lines.push('ORN | Quality Control & Booking Management');
+
+  const subject = 'Booking Confirmation '+b.fileNo+' - ORN Quality Control ('+fmtDate(b.tripStart)+' - '+fmtDate(b.tripEnd)+')';
+  let body = lines.join('\n');
+  // very long bookings: keep within safe URL limits for desktop clients
+  const limit = (client==='gmail'||client==='outlookweb') ? 7500 : 5000;
+  if (body.length > limit){
+    body = body.slice(0, limit-120) + '\n\n[Summary truncated - open the Hub or attach the Booking Summary PDF for the complete file]';
+  }
+  sendViaClient(client, to, subject, body);
+  logActivity(b.fileNo, 'Confirmation email drafted'+(to?' to '+to:'')+' via '+client);
 }
+
+function sendViaClient(client, to, subject, body){
+  const eTo = encodeURIComponent(to), eSu = encodeURIComponent(subject), eBo = encodeURIComponent(body);
+  if (client==='gmail'){
+    window.open('https://mail.google.com/mail/?view=cm&fs=1&to='+eTo+'&su='+eSu+'&body='+eBo, '_blank');
+  } else if (client==='outlookweb'){
+    window.open('https://outlook.office.com/mail/deeplink/compose?to='+eTo+'&subject='+eSu+'&body='+eBo, '_blank');
+  } else if (client==='copy'){
+    const text = 'To: '+to+'\nSubject: '+subject+'\n\n'+body;
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=>alert('Email text copied to clipboard - paste it into your webmail compose window.'));
+    } else { prompt('Copy the email text below:', text); }
+  } else {
+    // 'outlook' desktop and 'applemail' both use the system default mail handler
+    window.location.href = 'mailto:'+eTo+'?subject='+eSu+'&body='+eBo;
+  }
+}
+
+function chooseMailClient(then){
+  openBookingId = null;
+  document.getElementById('modalBox').innerHTML = `
+    <div class="modal-head"><div><h2>How do you send email?</h2>
+    <div class="meta">Choose once - this device will always use it for booking confirmations. You can change it any time in Settings.</div></div>
+    <button class="close-x" onclick="closeModal()">\u2715</button></div>
+    <div class="stat-list" style="max-width:520px">
+      <button class="btn ghost" style="text-align:left" onclick="setMailClient('outlook')">Outlook (desktop app)</button>
+      <button class="btn ghost" style="text-align:left" onclick="setMailClient('outlookweb')">Outlook on the web (office.com)</button>
+      <button class="btn ghost" style="text-align:left" onclick="setMailClient('gmail')">Gmail (web)</button>
+      <button class="btn ghost" style="text-align:left" onclick="setMailClient('applemail')">Apple Mail / system default</button>
+      <button class="btn ghost" style="text-align:left" onclick="setMailClient('copy')">Other webmail - copy text to clipboard</button>
+    </div>
+    <div class="hint" style="margin-top:12px">On a Mac, the "Outlook (desktop app)" option opens whichever app macOS has as its default email reader. If Apple Mail opens instead of Outlook, either set Outlook as the default (Apple Mail \u2192 Settings \u2192 General \u2192 Default email reader) or choose "Outlook on the web".</div>`;
+  document.getElementById('modalBack').classList.add('open');
+  window.__mailThen = then || null;
+}
+function setMailClient(c){
+  localStorage.setItem('ornrecon_mailclient', c);
+  closeModal();
+  const t = window.__mailThen; window.__mailThen = null;
+  if (t) t();
+}
+
 
 /* ================= USER GUIDE ================= */
 function renderHelp(){
@@ -2305,6 +2385,11 @@ function renderSettings(){
           <span class="what" style="max-width:140px"><input type="number" step="0.0001" value="${state.fx[c]}" ${isAdmin?'':'disabled'} onchange="state.fx['${c}']=parseFloat(this.value)||0;saveFx()"></span>
           <span class="hint" style="align-self:center">1 ${c} = ${state.fx[c]} EUR</span></div>`).join('')}
         <div class="hint">Variance = Paid (or Estimated if unpaid) minus Quoted, converted at these rates. Update monthly to keep the P&amp;L view honest.</div>
+        <div class="section-lbl">Email client (this device)</div>
+        <select onchange="localStorage.setItem('ornrecon_mailclient', this.value);">
+          ${[['','Not set - ask me next time'],['outlook','Outlook (desktop app)'],['outlookweb','Outlook on the web'],['gmail','Gmail (web)'],['applemail','Apple Mail / system default'],['copy','Other webmail - copy to clipboard']].map(([v,l])=>`<option value="${v}" ${(localStorage.getItem('ornrecon_mailclient')||'')===v?'selected':''}>${l}</option>`).join('')}
+        </select>
+        <div class="hint">Used by the "Email summary" button on bookings. Each person chooses on their own device.</div>
         <div class="section-lbl">Data tools</div>
         <button class="btn ghost small" onclick="exportJSON()">Export all data (JSON)</button>
         ${isAdmin && !FIRE? '<button class="btn ghost small" onclick="resetSeed()">Reset to spreadsheet seed</button>':''}
