@@ -628,8 +628,8 @@ function varianceHTML(c){
   if (!v) return (c.quoted||c.paid||c.estimated) ? '<span class="var-chk">check</span>' : '';
   if (Math.abs(v.eur) < 0.5) return '<span style="color:var(--faint)">±0</span>';
   return v.eur<0
-    ? '<span class="var-pos">▼ '+fmtEUR(Math.abs(v.eur))+' saving</span>'
-    : '<span class="var-neg">▲ '+fmtEUR(v.eur)+' loss</span>';
+    ? '<span class="var-pos">▲ '+fmtEUR(Math.abs(v.eur))+' saving</span>'
+    : '<span class="var-neg">▼ '+fmtEUR(v.eur)+' loss</span>';
 }
 
 /* ================= THEME ================= */
@@ -818,11 +818,17 @@ function renderDashboard(){
     </div>
 
     <div class="grid3" style="margin-bottom:14px">
-      <div class="card">
-        <h3>Net position (paid vs quoted)</h3>
+      <div class="card" style="cursor:pointer" onclick="openVarianceBreakdown()" title="Click for the full breakdown">
+        <h3>Net position (paid vs quoted) · click for breakdown</h3>
         <div class="bignum ${net>=0?'saving':'loss'}">${net>=0?'':'-'}€${Math.abs(net).toLocaleString('en-GB',{maximumFractionDigits:0})} ${net>=0?'saved':'lost'}</div>
-        <div class="subnum" style="margin-top:6px">▼ €${saving.toLocaleString('en-GB',{maximumFractionDigits:0})} savings &nbsp;·&nbsp; ▲ €${loss.toLocaleString('en-GB',{maximumFractionDigits:0})} losses</div>
-        <div class="hint">${varCount} components measured · ${checkCount} need a rate check · FX rates editable in Settings</div>
+        <div class="subnum" style="margin-top:6px">▲ €${saving.toLocaleString('en-GB',{maximumFractionDigits:0})} savings &nbsp;·&nbsp; ▼ €${loss.toLocaleString('en-GB',{maximumFractionDigits:0})} losses</div>
+        <div class="subnum" style="margin-top:4px">${['USA','Australia'].map(src=>{
+          let s=0,l=0;
+          bs.filter(x=>x.source===src).forEach(x=>activeComps(x).forEach(cc=>{const vv=compVariance(cc); if(vv){ if(vv.eur<0)s+=-vv.eur; else l+=vv.eur; }}));
+          const n=s-l;
+          return src+': <b class="'+(n>=0?'var-pos':'var-neg')+'">'+(n>=0?'+':'-')+'\u20AC'+Math.abs(n).toLocaleString('en-GB',{maximumFractionDigits:0})+'</b>';
+        }).join(' &nbsp;·&nbsp; ')}</div>
+        <div class="hint">${varCount} components measured · ${checkCount} need a rate check</div>
       </div>
       <div class="card">
         <h3>Bookings by source</h3>
@@ -1009,7 +1015,7 @@ function renderBookings(){
           <td style="max-width:230px">${esc((b.pax||'—').slice(0,58))}</td>
           <td><span class="prog"><i style="width:${pct}%"></i></span><span class="prog-label">${done}/${act.length}</span></td>
           <td>${pend? '<b style="color:var(--warn)">'+pend+'</b>':'<span style="color:var(--ok)">0</span>'}</td>
-          <td>${has? (net<0?'<span class="var-pos">▼ '+fmtEUR(Math.abs(net))+'</span>':'<span class="var-neg">▲ '+fmtEUR(net)+'</span>') : '<span style="color:var(--faint)">—</span>'}</td>
+          <td>${has? (net<0?'<span class="var-pos">▲ '+fmtEUR(Math.abs(net))+'</span>':'<span class="var-neg">▼ '+fmtEUR(net)+'</span>') : '<span style="color:var(--faint)">—</span>'}</td>
         </tr>`;
       }).join('') || '<tr><td colspan="8" class="empty">No bookings match these filters.</td></tr>'}
       </tbody>
@@ -1019,6 +1025,77 @@ function clearFilters(){
   state.filters = { q:'', source:'', status:'', service:'', band:'', month:'', activityKw:'', era:'' };
   renderBookings();
   renderSidebar();
+}
+
+
+/* ================= VARIANCE BREAKDOWN (dashboard drill-down) ================= */
+let varFilters = { src:'', kind:'' };
+function openVarianceBreakdown(){
+  varFilters = { src:'', kind:'' };
+  renderVarianceBreakdown();
+  document.getElementById('modalBack').classList.add('open');
+}
+function renderVarianceBreakdown(){
+  openBookingId = null;
+  const bs = state.bookings.filter(b=>era(b)==='uk');
+  const rows = [];
+  const totals = { USA:{s:0,l:0}, Australia:{s:0,l:0}, Other:{s:0,l:0} };
+  bs.forEach(b=>activeComps(b).forEach(c=>{
+    const v = compVariance(c);
+    if (!v) return;
+    rows.push({b, c, eur:v.eur});
+    const t = totals[b.source] || (totals[b.source]={s:0,l:0});
+    if (v.eur<0) t.s += -v.eur; else t.l += v.eur;
+  }));
+  let shown = rows;
+  if (varFilters.src) shown = shown.filter(r=>r.b.source===varFilters.src);
+  if (varFilters.kind==='loss') shown = shown.filter(r=>r.eur>0.5);
+  if (varFilters.kind==='saving') shown = shown.filter(r=>r.eur<-0.5);
+  shown.sort((a,z)=>Math.abs(z.eur)-Math.abs(a.eur));
+  const sumS = shown.filter(r=>r.eur<0).reduce((n,r)=>n+-r.eur,0);
+  const sumL = shown.filter(r=>r.eur>0).reduce((n,r)=>n+r.eur,0);
+
+  const srcBox = (label,t)=>{
+    const n = t.s - t.l;
+    return `<div class="card" style="flex:1;min-width:200px;cursor:pointer;${varFilters.src===label?'border-color:var(--gold)':''}" onclick="varFilters.src=varFilters.src==='${label}'?'':'${label}';renderVarianceBreakdown()">
+      <h3>${label}</h3>
+      <div class="bignum ${n>=0?'saving':'loss'}" style="font-size:22px">${n>=0?'+':'-'}\u20AC${Math.abs(n).toLocaleString('en-GB',{maximumFractionDigits:0})}</div>
+      <div class="subnum">\u25B2 \u20AC${t.s.toLocaleString('en-GB',{maximumFractionDigits:0})} savings \u00B7 \u25BC \u20AC${t.l.toLocaleString('en-GB',{maximumFractionDigits:0})} losses</div>
+    </div>`;
+  };
+
+  document.getElementById('modalBox').innerHTML = `
+    <div class="modal-head">
+      <div><h2>Savings &amp; losses breakdown</h2>
+      <div class="meta">UK operation \u00B7 every measured component, biggest impact first \u00B7 click a source card to filter \u00B7 click a row to open the booking</div></div>
+      <button class="close-x" onclick="closeModal()">\u2715</button>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      ${srcBox('USA', totals.USA)}
+      ${srcBox('Australia', totals.Australia)}
+    </div>
+    <div class="toolbar">
+      <select onchange="varFilters.kind=this.value;renderVarianceBreakdown()">
+        <option value="">Savings &amp; losses</option>
+        <option value="loss" ${varFilters.kind==='loss'?'selected':''}>Losses only</option>
+        <option value="saving" ${varFilters.kind==='saving'?'selected':''}>Savings only</option>
+      </select>
+      ${varFilters.src?`<button class="btn ghost small" onclick="varFilters.src='';renderVarianceBreakdown()">Showing ${varFilters.src} \u2014 clear</button>`:''}
+      <span class="hint" style="margin-left:auto">${shown.length} components \u00B7 \u25B2 \u20AC${sumS.toLocaleString('en-GB',{maximumFractionDigits:0})} \u00B7 \u25BC \u20AC${sumL.toLocaleString('en-GB',{maximumFractionDigits:0})}</span>
+    </div>
+    <div class="tbl-scroll" style="max-height:52vh;overflow-y:auto"><table class="bk">
+      <thead><tr><th>Impact</th><th>File No</th><th>Source</th><th>Date</th><th>Activity</th><th>Supplier</th><th>Quoted</th><th>Paid / Est.</th></tr></thead>
+      <tbody>${shown.slice(0,250).map(r=>`<tr onclick="openBooking('${esc(r.b.id)}')">
+        <td>${r.eur<0?'<span class="var-pos">\u25B2 '+fmtEUR(-r.eur)+'</span>':'<span class="var-neg">\u25BC '+fmtEUR(r.eur)+'</span>'}</td>
+        <td><b>${esc(r.b.fileNo)}</b></td>
+        <td><span class="pill-src ${esc(r.b.source)}">${esc(r.b.source)}</span></td>
+        <td style="white-space:nowrap">${fmtDate(r.c.travelDate)}</td>
+        <td style="max-width:240px">${esc((r.c.activity||'').slice(0,56))}</td>
+        <td>${esc((r.c.supplier||'').slice(0,26))}</td>
+        <td>${esc((r.c.quoted||'').slice(0,20))}</td>
+        <td>${esc(((r.c.paid||r.c.estimated)||'').slice(0,20))}</td>
+      </tr>`).join('') || '<tr><td colspan="8" class="empty">No measured components match.</td></tr>'}</tbody>
+    </table></div>`;
 }
 
 /* ================= BOOKING DETAIL ================= */
@@ -1051,7 +1128,7 @@ function refreshBookingModal(){
       <div>
         <h2>${esc(b.fileNo)} <span class="pill-src ${esc(b.source)}">${esc(b.source)}</span> <span class="badge ${band.key}">${band.label}</span></h2>
         <div class="meta">${fmtDate(b.tripStart)} → ${fmtDate(b.tripEnd)} · ${done}/${act.length} components confirmed
-        ${has? ' · net '+(net<0?'<span class="var-pos">▼ '+fmtEUR(Math.abs(net))+' saving</span>':'<span class="var-neg">▲ '+fmtEUR(net)+' loss</span>'):''}
+        ${has? ' · net '+(net<0?'<span class="var-pos">▲ '+fmtEUR(Math.abs(net))+' saving</span>':'<span class="var-neg">▼ '+fmtEUR(net)+' loss</span>'):''}
         · last update ${esc(b.updatedBy||'—')} ${b.updatedAt? new Date(b.updatedAt).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}):''}</div>
       </div>
       <span style="display:flex;gap:8px;align-items:flex-start">
