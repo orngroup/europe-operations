@@ -145,9 +145,8 @@ table.bk td input:focus, table.bk td select:focus{border-color:var(--gold);backg
     <div style="font-size:12px;letter-spacing:2.5px;text-transform:uppercase;opacity:.85;margin-top:2px">Europe</div>
   </div>
   <div class="login-card">
-    <h1>ORN Europe — Main Hub</h1>
-    <div class="sub">Operations · Contracting · Sales · Supplier Directory</div>
-    <div class="fld"><label>User ID</label><input id="loginUser" placeholder="e.g. AK" autocomplete="username"></div>
+    <h1>Europe Sales &amp; Operations Hub</h1>
+    <div class="fld"><label>User</label><select id="loginUser"></select></div>
     <div class="fld"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password"></div>
     <div class="err" id="loginErr"></div>
     <button class="btn" onclick="doLogin()">Sign in</button>
@@ -247,6 +246,7 @@ function initPersistence(){
 function loadLocal(){
   state.users = lsGet('users', null) || DEFAULT_USERS.slice();
   mergeDefaultUsers();
+  populateLoginUsers();
   state.directory = lsGet('directory', null) || SEED_DIRECTORY.map((r,i)=>({...r, id:r.id||('dir'+i)}));
   state.hotels = lsGet('hotels', null) || (SEED_CONTRACTING.hotels||[]).map((r,i)=>({id:'ht'+i, ...r}));
   state.chains = lsGet('chains', null) || (SEED_CONTRACTING.chains||[]).map((r,i)=>({id:'ch'+i, ...r}));
@@ -264,6 +264,7 @@ function subscribe(){
     if (s.empty){ DEFAULT_USERS.forEach(u=>DB.collection(COLL.users).doc(u.id).set(u)); return; }
     state.users = s.docs.map(d=>d.data());
     mergeDefaultUsers();
+    populateLoginUsers();
   });
   const seedMap = { directory:()=>SEED_DIRECTORY.map((r,i)=>({...r, id:r.id||('dir'+i)})),
     hotels:()=> (SEED_CONTRACTING.hotels||[]).map((r,i)=>({id:'ht'+i, ...r})),
@@ -309,6 +310,15 @@ function applyTheme(){
 function toggleTheme(){
   localStorage.setItem('ornhub_theme', (localStorage.getItem('ornhub_theme')||'light')==='dark'?'light':'dark');
   applyTheme();
+}
+function populateLoginUsers(){
+  const sel = document.getElementById('loginUser');
+  if (!sel || sel.tagName!=='SELECT') return;
+  const users = (state.users && state.users.length? state.users : DEFAULT_USERS).slice()
+    .sort((a,z)=>a.name.localeCompare(z.name));
+  const cur = sel.value;
+  sel.innerHTML = users.map(u=>`<option value="${u.id}">${u.name} (${u.id})</option>`).join('');
+  if (cur && users.some(u=>u.id===cur)) sel.value = cur;
 }
 function doLogin(){
   const u = document.getElementById('loginUser').value.trim().toUpperCase();
@@ -709,6 +719,7 @@ function addDirEntry(){
 
 /* ================= BOOT ================= */
 applyTheme();
+populateLoginUsers();
 document.getElementById('loginPass').addEventListener('keydown', e=>{ if (e.key==='Enter') doLogin(); });
 initPersistence();
 if (!FIRE) tryRestoreSession(); else setTimeout(tryRestoreSession, 600);
