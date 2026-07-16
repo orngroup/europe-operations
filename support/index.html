@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORN Europe — Support Request</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:linear-gradient(160deg,#0b0d12 0%,#1a2233 60%,#2d4468 100%);min-height:100vh;color:#1d2433;display:flex;align-items:center;justify-content:center;padding:26px 14px}
+.wrap{width:min(620px,100%)}
+.brand{color:#fff;text-align:center;margin-bottom:20px}
+.brand .orn{font-weight:800;font-size:30px;letter-spacing:7px}
+.brand .sub{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;opacity:.8;margin-top:2px;color:#c9a94f}
+.card{background:#fff;border-radius:16px;padding:30px 32px;box-shadow:0 14px 44px rgba(4,7,13,.5)}
+h1{font-size:19px;font-weight:800;margin-bottom:4px}
+.lead{color:#5f6880;font-size:12.5px;margin-bottom:18px}
+label{display:block;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#5f6880;font-weight:700;margin:12px 0 4px}
+input,select,textarea{width:100%;font-family:inherit;font-size:13.5px;border:1px solid #d5dae3;border-radius:8px;padding:10px 12px;outline:none;background:#fff;color:#1d2433}
+input:focus,select:focus,textarea:focus{border-color:#a9801e}
+textarea{min-height:110px;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.row2{grid-template-columns:1fr}}
+.btn{margin-top:20px;width:100%;background:#a9801e;color:#fff;border:none;border-radius:8px;padding:13px;font-weight:800;font-size:14px;letter-spacing:.3px;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.55;cursor:wait}
+.err{color:#cc3a24;font-size:12.5px;min-height:16px;margin-top:8px}
+.ok{ text-align:center;padding:16px 0 }
+.ok .tick{font-size:44px}
+.ok h2{font-size:18px;margin:8px 0 4px}
+.ok p{color:#5f6880;font-size:13px}
+.ok .ref{display:inline-block;margin:12px 0;background:#faf5e8;border:1px dashed #c9a94f;color:#a9801e;font-weight:800;font-size:16px;letter-spacing:1px;border-radius:8px;padding:8px 18px}
+.hint{color:#9aa2b5;font-size:11px;margin-top:14px;text-align:center}
+.urgent-note{background:#fbe4df;border:1px solid #cc3a24;color:#a32e1c;border-radius:8px;padding:8px 12px;font-size:12px;margin-top:8px;display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="orn">ORN</div><div class="sub">Europe · Sales &amp; Operations</div></div>
+  <div class="card" id="formCard">
+    <h1>Support request</h1>
+    <div class="lead">For TAG USA and ORN Australia teams — booking queries, amendments, rate issues and anything the Europe team needs to action. Your request goes straight into the Europe operations queue.</div>
+    <div class="row2">
+      <div><label>Your name *</label><input id="fName" placeholder="e.g. Jackie Smith"></div>
+      <div><label>Your email *</label><input id="fEmail" type="email" placeholder="you@company.com"></div>
+    </div>
+    <div class="row2">
+      <div><label>Office *</label><select id="fOffice"><option>TAG USA</option><option>ORN Australia</option><option>Other</option></select></div>
+      <div><label>Priority *</label><select id="fPriority" onchange="document.getElementById('urgNote').style.display=this.value.startsWith('Urgent')?'block':'none'"><option>Normal</option><option>High</option><option>Urgent - guest travelling</option></select></div>
+    </div>
+    <div class="urgent-note" id="urgNote">For guests on the ground right now, please ALSO phone the Europe duty contact after submitting — this form is monitored during working hours.</div>
+    <div class="row2">
+      <div><label>Category</label><select id="fCategory"><option>Booking query</option><option>Amendment request</option><option>Rate / pricing issue</option><option>Cancellation</option><option>New booking request</option><option>Supplier issue</option><option>Other</option></select></div>
+      <div><label>Booking file no (if known)</label><input id="fFileNo" placeholder="e.g. TAG012B75ZG"></div>
+    </div>
+    <label>Subject *</label><input id="fSubject" placeholder="One line summary">
+    <label>Message *</label><textarea id="fMessage" placeholder="Give as much detail as possible — dates, guest names, what you need and by when."></textarea>
+    <div class="err" id="fErr"></div>
+    <button class="btn" id="fSubmit" onclick="submitTicket()">Submit request</button>
+    <div class="hint">Submitted requests appear instantly on the Europe team's dashboard and are tracked to resolution.</div>
+  </div>
+  <div class="card ok" id="okCard" style="display:none">
+    <div class="tick">✅</div>
+    <h2>Request received</h2>
+    <p>Your reference — quote it in any follow-up:</p>
+    <div class="ref" id="okRef"></div>
+    <p>The Europe team has it on their dashboard now and will come back to you at <b id="okEmail"></b>.</p>
+    <button class="btn" onclick="location.reload()">Submit another request</button>
+  </div>
+</div>
+
+<script>
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyALzMtGRDrQyJOC-KbtqvCPgo1NBQ6Vdpc",
+  authDomain: "orn-operations.firebaseapp.com",
+  projectId: "orn-operations",
+  storageBucket: "orn-operations.firebasestorage.app",
+  messagingSenderId: "470679786970",
+  appId: "1:470679786970:web:28945392beb13b9a2d5ce3"
+};
+let DB=null, FIRE=false;
+try{
+  if (typeof firebase !== 'undefined' && firebase && firebase.initializeApp){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    DB = firebase.firestore(); FIRE = true;
+  }
+}catch(e){ console.error(e); }
+
+function v(id){ return document.getElementById(id).value.trim(); }
+function submitTicket(){
+  const err = document.getElementById('fErr');
+  err.textContent = '';
+  const name=v('fName'), email=v('fEmail'), subject=v('fSubject'), message=v('fMessage');
+  if (!name || !email || !subject || !message){ err.textContent='Please complete all required fields (name, email, subject, message).'; return; }
+  if (!/\S+@\S+\.\S+/.test(email)){ err.textContent='Please enter a valid email address.'; return; }
+  if (!FIRE){ err.textContent='Cannot reach the ORN system right now (network issue). Please email the Europe team instead, or retry shortly.'; return; }
+  const btn = document.getElementById('fSubmit');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  const ref = 'TK-' + Date.now().toString(36).toUpperCase().slice(-6);
+  const id = 'ti' + Date.now() + Math.random().toString(36).slice(2,6);
+  const t = { id, ref, ts:new Date().toISOString(), name, email,
+    office: v('fOffice'), priority: v('fPriority'), category: v('fCategory'),
+    fileNo: v('fFileNo').toUpperCase(), subject, message,
+    status:'Open', assigned:'', notes:[] };
+  DB.collection('recon_tickets').doc(id).set(t).then(()=>{
+    document.getElementById('formCard').style.display='none';
+    document.getElementById('okRef').textContent = ref;
+    document.getElementById('okEmail').textContent = email;
+    document.getElementById('okCard').style.display='block';
+  }).catch(e=>{
+    console.error(e);
+    btn.disabled=false; btn.textContent='Submit request';
+    err.textContent='Submission failed — please retry, or email the Europe team.';
+  });
+}
+</script>
+</body>
+</html>

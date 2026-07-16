@@ -150,6 +150,7 @@ table.bk td input:focus, table.bk td select:focus{border-color:var(--gold);backg
     <div class="fld"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password"></div>
     <div class="err" id="loginErr"></div>
     <button class="btn" onclick="doLogin()">Sign in</button>
+    <div style="text-align:center;font-size:12px;color:#5f6880">TAG USA / Australia teams: <a href="./support/" style="color:#a9801e;font-weight:700">submit a support request →</a></div>
   </div>
 </div>
 
@@ -207,7 +208,9 @@ const DEFAULT_USERS = [
   {id:'CT', name:'Clinton Thomas', pass:'ornopsct', role:'editor'},
   {id:'MZ', name:'Marta Zizkova', pass:'ornopsmz', role:'editor'},
   {id:'SN', name:'Sahil Nijhawan', pass:'ornopssn', role:'editor'},
-  {id:'SS', name:'Suman Sethi', pass:'ornopsss', role:'editor'}
+  {id:'SS', name:'Suman Sethi', pass:'ornopsss', role:'editor'},
+  {id:'RK', name:'Raj Kumar', pass:'ornopsrk', role:'editor'},
+  {id:'MS', name:'Manish Suchde', pass:'ornopsms', role:'editor'}
 ];
 const HOTEL_STATUSES = ['Not Actioned','In Progress','Contracted','Declined'];
 const DIR_CATS = ['Activity supplier','Transfer company','Driver','DMC','Portal login','Hotel platform','Pipeline','Target list'];
@@ -265,6 +268,7 @@ function subscribe(){
     state.users = s.docs.map(d=>d.data());
     mergeDefaultUsers();
     populateLoginUsers();
+    if (!state.user) tryRestoreSession();
   });
   const seedMap = { directory:()=>SEED_DIRECTORY.map((r,i)=>({...r, id:r.id||('dir'+i)})),
     hotels:()=> (SEED_CONTRACTING.hotels||[]).map((r,i)=>({id:'ht'+i, ...r})),
@@ -317,7 +321,7 @@ function populateLoginUsers(){
   const users = (state.users && state.users.length? state.users : DEFAULT_USERS).slice()
     .sort((a,z)=>a.name.localeCompare(z.name));
   const cur = sel.value;
-  sel.innerHTML = users.map(u=>`<option value="${u.id}">${u.name} (${u.id})</option>`).join('');
+  sel.innerHTML = users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
   if (cur && users.some(u=>u.id===cur)) sel.value = cur;
 }
 function doLogin(){
@@ -328,6 +332,7 @@ function doLogin(){
   if (!found){ document.getElementById('loginErr').textContent='Invalid user ID or password.'; return; }
   state.user = found;
   sessionStorage.setItem('ornhub_user', JSON.stringify({id:found.id}));
+  sessionStorage.setItem('orn_sso', JSON.stringify({id:found.id}));
   document.getElementById('loginView').style.display='none';
   document.getElementById('appView').style.display='block';
   document.getElementById('userAvatar').textContent = found.id;
@@ -335,9 +340,10 @@ function doLogin(){
   logActivity('-','Signed in to Europe Hub');
   renderAll();
 }
-function doLogout(){ sessionStorage.removeItem('ornhub_user'); location.reload(); }
+function doLogout(){ sessionStorage.removeItem('ornhub_user'); sessionStorage.removeItem('orn_sso'); location.reload(); }
 function tryRestoreSession(){
-  const s = sessionStorage.getItem('ornhub_user');
+  if (state.user) return;
+  const s = sessionStorage.getItem('ornhub_user') || sessionStorage.getItem('orn_sso');
   if (!s) return;
   const {id} = JSON.parse(s);
   const users = state.users.length? state.users : DEFAULT_USERS;
