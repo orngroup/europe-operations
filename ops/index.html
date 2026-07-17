@@ -847,6 +847,21 @@ function renderDashboard(){
       <button class="btn" onclick="openAddBooking()">+ New booking</button></span>
     </div>
 
+    ${(()=>{
+      const openT = state.tickets.filter(t=>t.status==='Open');
+      const progT = state.tickets.filter(t=>t.status==='In progress');
+      const urgent = openT.filter(t=>/urgent/i.test(t.priority||''));
+      const latest = openT.concat(progT).sort((a,z)=>(z.ts||'').localeCompare(a.ts||''))[0];
+      return `<div class="support-banner ${openT.length?'has-open':''}" onclick="switchView('messages')" title="Open the Messages queue">
+        <span class="bignum">${openT.length}</span>
+        <span><div class="sb-label">${openT.length? 'Support messages need action' : 'Support messages — all clear'}</div>
+        <div class="sb-meta">${openT.length? openT.length+' open · '+progT.length+' in progress — from TAG USA & ORN Australia' : (progT.length? progT.length+' in progress, none waiting' : 'No open requests — new ones appear here the moment they are submitted')}</div></span>
+        ${urgent.length? `<span class="sb-urgent">⚠ ${urgent.length} URGENT — guest travelling</span>`:''}
+        ${latest? `<span class="sb-meta">Latest: <b>${esc((latest.subject||'').slice(0,44))}</b> · ${esc(latest.name||'')} (${esc(latest.office||'')})</span>`:''}
+        <span class="sb-go">Open queue →</span>
+      </div>`;
+    })()}
+
     <div class="tband-row">
       ${bandCard('btrav','Travelling now', bands.btrav)}
       ${bandCard('b15','T-15 · Urgent', bands.b15)}
@@ -868,12 +883,6 @@ function renderDashboard(){
           return src+': <b class="'+(n>=0?'var-pos':'var-neg')+'">'+(n>=0?'+':'-')+'\u20AC'+Math.abs(n).toLocaleString('en-GB',{maximumFractionDigits:0})+'</b>';
         }).join(' &nbsp;·&nbsp; ')}</div>
         <div class="hint">${varCount} components measured · ${checkCount} need a rate check</div>
-      </div>
-      <div class="card" style="cursor:pointer" onclick="switchView('messages')">
-        <h3>Support messages · click to manage</h3>
-        <div class="bignum" style="color:${state.tickets.filter(t=>t.status==='Open').length?'var(--danger)':'var(--ok)'}">${state.tickets.filter(t=>t.status==='Open').length}</div>
-        <div class="subnum">open · ${state.tickets.filter(t=>t.status==='In progress').length} in progress · ${state.tickets.filter(t=>t.status==='Resolved').length} resolved</div>
-        <div class="hint">Submitted by TAG USA / ORN Australia via www.orneurope.com/support</div>
       </div>
       <div class="card">
         <h3>Bookings by source</h3>
