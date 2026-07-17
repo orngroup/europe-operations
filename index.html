@@ -203,14 +203,18 @@ const COLL = { users:'recon_users', activity:'recon_activity', directory:'recon_
                hotels:'recon_hotels', chains:'recon_chains', outreach:'recon_outreach' };
 const DIR_PASS = 'ORNCONFIDENTIAL';
 const DEFAULT_USERS = [
-  {id:'AK', name:'Ajay Kawa', pass:'ornopsak', role:'admin'},
-  {id:'KN', name:'Ken Newton', pass:'ornopskn', role:'editor'},
-  {id:'CT', name:'Clinton Thomas', pass:'ornopsct', role:'editor'},
-  {id:'MZ', name:'Marta Zizkova', pass:'ornopsmz', role:'editor'},
-  {id:'SN', name:'Sahil Nijhawan', pass:'ornopssn', role:'editor'},
-  {id:'SS', name:'Suman Sethi', pass:'ornopsss', role:'editor'},
-  {id:'RK', name:'Raj Kumar', pass:'ornopsrk', role:'editor'},
-  {id:'MS', name:'Manish Suchde', pass:'ornopsms', role:'editor'}
+  {id:'AK', name:'Ajay Kawa', pass:'ornopsak', role:'admin', position:'CEO', phone:'07810 778 794', email:'ajay.kawa@orn.com', company:'ORN Europe', country:'UK'},
+  {id:'KN', name:'Ken Newton', pass:'ornopskn', role:'editor', position:'Commercial Manager', phone:'07984 3511117', email:'ken.newton@orn.com', company:'ORN Europe', country:'UK'},
+  {id:'CT', name:'Clinton Thomas', pass:'ornopsct', role:'editor', position:'Operations Exec', phone:'+91 789 979 3779', email:'clinton@nexusdmc.com', company:'ORN Europe', country:'UK'},
+  {id:'MZ', name:'Marta Zizkova', pass:'ornopsmz', role:'editor', position:'', phone:'', email:'', company:'ORN Europe', country:'UK'},
+  {id:'SN', name:'Sahil Nijhawan', pass:'ornopssn', role:'editor', position:'CEO Australia', phone:'', email:'', company:'ORN Australia', country:'Australia'},
+  {id:'SS', name:'Suman Sethi', pass:'ornopsss', role:'editor', position:'', phone:'', email:'', company:'', country:''},
+  {id:'RK', name:'Raj Kumar', pass:'ornopsrk', role:'editor', position:'Group COO', phone:'', email:'', company:'ORN Holdings', country:''},
+  {id:'MS', name:'Manish Suchde', pass:'ornopsms', role:'editor', position:'Global DMC & API', phone:'', email:'', company:'', country:''},
+  {id:'DB', name:'Dora Bobadilla', pass:'ornopsdb', role:'editor', position:'Operations Exec', phone:'', email:'dora.b@nexusdmc.com', company:'ORN Australia', country:'Australia'},
+  {id:'MU', name:'MS Muskan', pass:'ornopsmu', role:'editor', position:'Operations Exec', phone:'+61 474 884 169', email:'muskan@tripfactory.com', company:'ORN Australia', country:'Australia'},
+  {id:'DS', name:'Deepa Srivastava', pass:'ornopsds', role:'editor', position:'Operations Exec', phone:'+61 403 199 959', email:'deepa.s@tripfactory.com', company:'ORN Australia', country:'Australia'},
+  {id:'HK', name:'Harish K', pass:'ornopshk', role:'editor', position:'Operations Exec', phone:'+61 431 298 566', email:'harish.k@nexusdmc.com', company:'ORN Australia', country:'Australia'}
 ];
 const HOTEL_STATUSES = ['Not Actioned','In Progress','Contracted','Declined'];
 const DIR_CATS = ['Activity supplier','Transfer company','Driver','DMC','Portal login','Hotel platform','Pipeline','Target list'];
@@ -259,8 +263,12 @@ function loadLocal(){
 }
 function mergeDefaultUsers(){
   let changed=false;
-  DEFAULT_USERS.forEach(du=>{ if (!state.users.some(u=>u.id===du.id)){ state.users.push(du); changed=true; } });
-  if (changed && !FIRE) lsSet('users', state.users);
+  DEFAULT_USERS.forEach(du=>{
+    const ex = state.users.find(u=>u.id===du.id);
+    if (!ex){ state.users.push(du); changed=true; }
+    else ['position','phone','email','company','country'].forEach(k=>{ if (du[k] && !ex[k]){ ex[k]=du[k]; changed=true; } });
+  });
+  if (changed){ if (FIRE){ state.users.forEach(u=>DB.collection(COLL.users).doc(u.id).set(u)); } else lsSet('users', state.users); }
 }
 function subscribe(){
   DB.collection(COLL.users).onSnapshot(s=>{
