@@ -53,8 +53,16 @@ textarea{min-height:110px;resize:vertical}
     </div>
     <div class="urgent-note" id="urgNote">For guests on the ground right now, please ALSO phone the Europe duty contact after submitting — this form is monitored during working hours.</div>
     <div class="row2">
-      <div><label>Category</label><select id="fCategory"><option>Booking query</option><option>Amendment request</option><option>Rate / pricing issue</option><option>Cancellation</option><option>New booking request</option><option>Supplier issue</option><option>Other</option></select></div>
-      <div><label>Booking file no (if known)</label><input id="fFileNo" placeholder="e.g. TAG012B75ZG"></div>
+      <div><label>Category</label><select id="fCategory"><option>Booking query</option><option>Amendment request</option><option>Rate / pricing issue</option><option>Cancellation</option><option>New booking request</option><option>Singapore stopover</option><option>Group tour query</option><option>Payment / invoice</option><option>Supplier issue</option><option>Other</option></select></div>
+      <div><label>Booking type</label><select id="fType"><option>FIT</option><option>Group</option><option>Singapore stopover</option><option>Europe reconfirmation</option><option>Not sure</option></select></div>
+    </div>
+    <div class="row2">
+      <div><label>Client / customer</label><select id="fClient"><option></option><option>Inspiring Vacations</option><option>Best in Travel</option><option>James GC Client</option><option>ANZ Global Travel</option><option>My Travel Solution</option><option>TAG</option><option>Other</option></select></div>
+      <div><label>Travel date (if known)</label><input id="fTravelDate" type="date"></div>
+    </div>
+    <div class="row2">
+      <div><label>Booking file no (if known)</label><input id="fFileNo" placeholder="e.g. ORN012B75ZG"></div>
+      <div><label>IV Order / Booking ID</label><input id="fIvRef" placeholder="e.g. 374121 (Singapore stopovers)"></div>
     </div>
     <label>Subject *</label><input id="fSubject" placeholder="One line summary">
     <label>Message *</label><textarea id="fMessage" placeholder="Give as much detail as possible — dates, guest names, what you need and by when."></textarea>
@@ -103,7 +111,8 @@ function submitTicket(){
   const id = 'ti' + Date.now() + Math.random().toString(36).slice(2,6);
   const t = { id, ref, ts:new Date().toISOString(), name, email,
     office: v('fOffice'), priority: v('fPriority'), category: v('fCategory'),
-    fileNo: v('fFileNo').toUpperCase(), subject, message,
+    bookingType: v('fType'), client: v('fClient'), travelDate: v('fTravelDate'),
+    fileNo: v('fFileNo').toUpperCase(), ivRef: v('fIvRef').replace(/[^0-9]/g,''), subject, message,
     status:'Open', assigned:'', notes:[] };
   DB.collection('recon_tickets').doc(id).set(t).then(()=>{
     document.getElementById('formCard').style.display='none';

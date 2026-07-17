@@ -2495,7 +2495,8 @@ function renderMessages(){
 
 function ticketCard(t){
   const open = tikOpen.has(t.id);
-  const linked = state.bookings.find(b=>b.fileNo===(t.fileNo||'').trim().toUpperCase());
+  let linked = state.bookings.find(b=>b.fileNo===(t.fileNo||'').trim().toUpperCase());
+  if (!linked && t.ivRef) linked = state.bookings.find(b=>b.fileNo==='IV'+t.ivRef || (b.components||[]).some(c=>(c.remarksClinton||'').includes(t.ivRef)));
   const prioClass = t.priority==='Urgent - guest travelling' ? 'Issue' : (t.priority==='High' ? 'Pending' : 'svc');
   const stChip = {'Open':'Issue','In progress':'Pending','Resolved':'Reconfirmed'}[t.status]||'svc';
   return `<div class="comp ${open?'open':''}">
@@ -2512,8 +2513,9 @@ function ticketCard(t){
       <div class="field-grid">
         <div><label>From</label><div style="padding-top:4px">${esc(t.name)} · <a href="mailto:${esc(t.email)}">${esc(t.email)}</a></div></div>
         <div><label>Office</label><div style="padding-top:4px">${esc(t.office)}</div></div>
-        <div><label>Category</label><div style="padding-top:4px">${esc(t.category||'—')}</div></div>
-        <div><label>Booking</label><div style="padding-top:4px">${t.fileNo? (linked? `<a href="#" onclick="openBooking('${esc(linked.id)}');return false"><b>${esc(t.fileNo)}</b></a> ✓ found` : esc(t.fileNo)+' <span class="hint" style="display:inline">(no matching file)</span>') : '—'}</div></div>
+        <div><label>Category / type</label><div style="padding-top:4px">${esc(t.category||'—')}${t.bookingType?' · '+esc(t.bookingType):''}</div></div>
+        <div><label>Client</label><div style="padding-top:4px">${esc(t.client||'—')}${t.travelDate?' · travels '+fmtDate(t.travelDate):''}</div></div>
+        <div><label>Booking</label><div style="padding-top:4px">${linked? `<a href="#" onclick="openBooking('${esc(linked.id)}');return false"><b>${esc(t.fileNo||linked.fileNo)}</b></a> ✓ found` : (t.fileNo? esc(t.fileNo)+' <span class="hint" style="display:inline">(no matching file)</span>' : '—')}${t.ivRef?'<div class="hint">IV: '+esc(t.ivRef)+'</div>':''}</div></div>
       </div>
       <div class="fld"><label>Message</label><div style="white-space:pre-wrap;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px">${esc(t.message)}</div></div>
       <div class="section-lbl">Internal notes (${(t.notes||[]).length})</div>
