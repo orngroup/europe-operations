@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORN Europe — Guest Support Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:linear-gradient(160deg,#0b0d12 0%,#1a2233 60%,#2d4468 100%);min-height:100vh;min-height:100dvh;color:#1d2433;display:flex;align-items:center;justify-content:center;padding:14px}
+.wrap{width:min(560px,100%);display:flex;flex-direction:column;height:min(760px,94dvh)}
+.brand{color:#fff;text-align:center;margin-bottom:14px}
+.brand .orn{font-weight:800;font-size:26px;letter-spacing:6px}
+.brand .sub{font-size:10.5px;letter-spacing:2.5px;text-transform:uppercase;opacity:.8;margin-top:2px;color:#c9a94f}
+.card{background:#fff;border-radius:16px;padding:26px 28px;box-shadow:0 14px 44px rgba(4,7,13,.5)}
+h1{font-size:18px;font-weight:800;margin-bottom:4px}
+.lead{color:#5f6880;font-size:12.5px;margin-bottom:14px}
+label{display:block;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#5f6880;font-weight:700;margin:12px 0 4px}
+input,textarea{width:100%;font-family:inherit;font-size:14px;border:1px solid #d5dae3;border-radius:8px;padding:11px 12px;outline:none;background:#fff;color:#1d2433}
+input:focus,textarea:focus{border-color:#a9801e}
+.btn{margin-top:18px;width:100%;background:#a9801e;color:#fff;border:none;border-radius:8px;padding:13px;font-weight:800;font-size:14px;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.55}
+.err{color:#cc3a24;font-size:12.5px;min-height:16px;margin-top:8px}
+.hint{color:#9aa2b5;font-size:11px;margin-top:12px;text-align:center}
+/* chat */
+.chatcard{background:#fff;border-radius:16px;box-shadow:0 14px 44px rgba(4,7,13,.5);display:none;flex:1;min-height:0;flex-direction:column;overflow:hidden}
+.chathead{background:#12151d;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.chathead .t{font-weight:800;font-size:14px}
+.chathead .s{font-size:11px;color:#c9a94f}
+.status{font-size:10px;letter-spacing:.8px;text-transform:uppercase;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3)}
+.msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;background:#f4f5f8}
+.m{max-width:82%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.45;white-space:pre-wrap}
+.m .who{font-size:10px;font-weight:700;letter-spacing:.5px;color:#9aa2b5;margin-bottom:2px;text-transform:uppercase}
+.m.guest{align-self:flex-end;background:#a9801e;color:#fff;border-bottom-right-radius:4px}
+.m.guest .who{color:rgba(255,255,255,.75)}
+.m.team{align-self:flex-start;background:#fff;border:1px solid #e6e9ef;border-bottom-left-radius:4px}
+.composer{display:flex;gap:8px;padding:12px;background:#fff;border-top:1px solid #e6e9ef}
+.composer input{flex:1}
+.composer button{background:#a9801e;color:#fff;border:none;border-radius:8px;padding:0 20px;font-weight:800;cursor:pointer;font-size:14px}
+.sysnote{text-align:center;color:#9aa2b5;font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="orn">ORN</div><div class="sub">Europe · Guest Support</div></div>
+
+  <div class="card" id="startCard">
+    <h1>Chat with our Europe team</h1>
+    <div class="lead">For guests currently on tour or arriving soon. Start a chat and our team will respond — we cover UK, India and Australia hours, around the clock. Keep this page's link to return to your conversation at any time.</div>
+    <label>Your name *</label><input id="gName" placeholder="e.g. Sarah Mitchell">
+    <label>Booking reference (from your travel documents)</label><input id="gRef" placeholder="e.g. ORN012B75ZG — leave blank if unsure">
+    <label>Where are you right now?</label><input id="gWhere" placeholder="e.g. Hotel Mercure, Paris">
+    <label>How can we help? *</label><textarea id="gFirst" rows="3" placeholder="Tell us what you need…"></textarea>
+    <div class="err" id="gErr"></div>
+    <button class="btn" id="gStart" onclick="startChat()">Start chat</button>
+    <div class="hint">In an emergency involving safety or medical care, always call local emergency services first (112 anywhere in Europe).</div>
+  </div>
+
+  <div class="chatcard" id="chatCard">
+    <div class="chathead">
+      <div><div class="t" id="chTitle">ORN Europe Support</div><div class="s" id="chSub"></div></div>
+      <span class="status" id="chStatus">Connected</span>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <div class="composer">
+      <input id="composerInput" placeholder="Type a message…" onkeydown="if(event.key==='Enter')sendMsg()">
+      <button onclick="sendMsg()">Send</button>
+    </div>
+  </div>
+  <div class="hint" id="linkHint" style="display:none">Bookmark or save this page's link — it brings you straight back to this conversation.</div>
+</div>
+
+<script>
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyALzMtGRDrQyJOC-KbtqvCPgo1NBQ6Vdpc",
+  authDomain: "orn-operations.firebaseapp.com",
+  projectId: "orn-operations",
+  storageBucket: "orn-operations.firebasestorage.app",
+  messagingSenderId: "470679786970",
+  appId: "1:470679786970:web:28945392beb13b9a2d5ce3"
+};
+let DB=null, FIRE=false, chatId=null, unsub=null;
+try{
+  if (typeof firebase !== 'undefined' && firebase && firebase.initializeApp){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    DB = firebase.firestore(); FIRE = true;
+  }
+}catch(e){ console.error(e); }
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function v(id){ return document.getElementById(id).value.trim(); }
+function token(){ return 'gc' + Date.now().toString(36) + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b=>(b%36).toString(36)).join(''); }
+
+function startChat(){
+  const err = document.getElementById('gErr');
+  err.textContent='';
+  const name=v('gName'), first=v('gFirst');
+  if (!name || !first){ err.textContent='Please give your name and a first message.'; return; }
+  if (!FIRE){ err.textContent='Cannot reach the support system right now. Please use the support phone number in your travel documents.'; return; }
+  const btn=document.getElementById('gStart'); btn.disabled=true; btn.textContent='Connecting…';
+  chatId = token();
+  const doc = {
+    id: chatId, createdAt: new Date().toISOString(), status:'Open',
+    guestName: name, bookingRef: v('gRef').toUpperCase(), location: v('gWhere'),
+    alertedCount: 0,
+    messages: [{ who:'guest', name, ts:new Date().toISOString(), text:first }]
+  };
+  DB.collection('recon_guestchats').doc(chatId).set(doc).then(()=>{
+    history.replaceState(null, '', location.pathname + '?c=' + chatId);
+    openChat(doc);
+  }).catch(e=>{
+    console.error(e); btn.disabled=false; btn.textContent='Start chat';
+    err.textContent='Could not start the chat — please retry, or use the support phone number in your travel documents.';
+  });
+}
+
+function openChat(doc){
+  document.getElementById('startCard').style.display='none';
+  document.getElementById('chatCard').style.display='flex';
+  document.getElementById('linkHint').style.display='block';
+  document.getElementById('chSub').textContent = (doc.bookingRef? doc.bookingRef+' · ':'') + doc.guestName;
+  if (unsub) unsub();
+  unsub = DB.collection('recon_guestchats').doc(chatId).onSnapshot(d=>{
+    if (!d.exists) return;
+    const c = d.data();
+    document.getElementById('chStatus').textContent = c.status==='Closed' ? 'Chat closed' : 'Connected';
+    renderMsgs(c);
+  });
+}
+
+function renderMsgs(c){
+  const box = document.getElementById('msgs');
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  box.innerHTML = c.messages.map(m=>`
+    <div class="m ${m.who==='guest'?'guest':'team'}">
+      <div class="who">${m.who==='guest'? esc(m.name||'You') : esc(m.name||'ORN Team')+' · ORN'}</div>${esc(m.text)}
+    </div>`).join('')
+    + (c.status==='Closed' ? '<div class="sysnote">This chat has been closed by our team. Send a message to reopen it.</div>' : '');
+  if (atBottom || true) box.scrollTop = box.scrollHeight;
+}
+
+function sendMsg(){
+  const inp = document.getElementById('composerInput');
+  const text = inp.value.trim();
+  if (!text || !chatId) return;
+  inp.value='';
+  const ref = DB.collection('recon_guestchats').doc(chatId);
+  ref.get().then(d=>{
+    if (!d.exists) return;
+    const c = d.data();
+    c.messages.push({ who:'guest', name:c.guestName, ts:new Date().toISOString(), text });
+    if (c.status==='Closed') c.status='Open';
+    ref.set(c);
+  });
+}
+
+// Returning guest via ?c= link
+(function(){
+  const p = new URLSearchParams(location.search);
+  const c = p.get('c');
+  if (c && FIRE){
+    chatId = c;
+    DB.collection('recon_guestchats').doc(c).get().then(d=>{
+      if (d.exists) openChat(d.data());
+    });
+  }
+})();
+</script>
+</body>
+</html>
