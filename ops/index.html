@@ -398,6 +398,7 @@ function loadLocal(){
   mergeDefaultUsers();
   populateLoginUsers();
   state.fx = lsGet('fx', null) || {...DEFAULT_FX};
+  state.notify = lsGet('notify', null) || {slackWebhook:''};
   state.activity = lsGet('activity', []);
   state.attachments = lsGet('attachments', {});
   let bk = lsGet('bookings', null);
@@ -466,6 +467,9 @@ function subscribeFirebase(){
       state[k] = s.docs.map(d=>d.data());
       renderListView(k);
     });
+  });
+  DB.collection(COLL.settings).doc('notify').onSnapshot(d=>{
+    if (d.exists) state.notify = d.data();
   });
   DB.collection(COLL.settings).doc('fx').onSnapshot(d=>{
     if (d.exists) state.fx = d.data(); else DB.collection(COLL.settings).doc('fx').set(DEFAULT_FX);
@@ -568,7 +572,7 @@ function deleteListItem(kind, id){
   renderListView(kind);
 }
 function renderListView(kind){
-  if (kind==='tickets'){ renderMessages(); renderSidebar(); renderDashboard(); }
+  if (kind==='tickets'){ watchNewTickets(); renderMessages(); renderSidebar(); renderDashboard(); }
   if (kind==='directory') renderDirectory();
   if (kind==='cards') renderCards();
   if (kind==='refunds') renderRefunds();
@@ -580,6 +584,40 @@ function renderListView(kind){
 
 function saveUsers(){ if (FIRE){ state.users.forEach(u=>DB.collection(COLL.users).doc(u.id).set(u)); } else lsSet('users', state.users); }
 function saveFx(){ if (FIRE) DB.collection(COLL.settings).doc('fx').set(state.fx); else { lsSet('fx', state.fx); renderAll(); } }
+function saveNotify(){ if (FIRE) DB.collection(COLL.settings).doc('notify').set(state.notify); else lsSet('notify', state.notify); }
+function toast(msg){
+  let t = document.getElementById('ornToast');
+  if (!t){
+    t = document.createElement('div');
+    t.id = 'ornToast';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--panel);padding:10px 22px;border-radius:24px;font-weight:700;font-size:13px;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,.3);transition:opacity .3s;opacity:0;pointer-events:none';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>{ t.style.opacity='0'; }, 2600);
+}
+function postSlack(text){
+  const url = (state.notify && state.notify.slackWebhook || '').trim();
+  if (!url || !url.startsWith('https://')) return false;
+  try{
+    fetch(url, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({text}) });
+    return true;
+  }catch(e){ console.error('Slack post failed', e); return false; }
+}
+function watchNewTickets(){
+  if (!FIRE) return;
+  const url = (state.notify && state.notify.slackWebhook || '').trim();
+  if (!url) return;
+  state.tickets.forEach(t=>{
+    if (t.status==='Open' && !t.slackNotified){
+      t.slackNotified = true;
+      DB.collection(COLL.tickets).doc(t.id).set(t);
+      postSlack('🆕 New support request '+(t.ref||'')+' — '+(t.priority||'Normal')+'\nFrom: '+(t.name||'')+' ('+(t.office||'')+')\nSubject: '+(t.subject||'')+(t.fileNo?'\nBooking: '+t.fileNo:'')+'\n→ www.orneurope.com/ops (Messages)');
+    }
+  });
+}
 
 /* ================= HELPERS ================= */
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -2687,7 +2725,11 @@ function ticketCard(t){
           <button class="btn ghost small" style="margin-left:8px" onclick="editTicket('${t.id}','assigned','${state.user?esc(state.user.name):''}')">Assign to me</button>
           <button class="btn ghost small" onclick="replyTicket('${t.id}')">Reply by email</button>
         </span>
-        <button class="btn danger small" onclick="delTicket('${t.id}')">Delete</button>
+        <span>
+          <button class="btn danger small" onclick="delTicket('${t.id}')">Delete</button>
+          <button class="btn ghost small" onclick="saveTicket('${t.id}')">Save</button>
+          <button class="btn small" onclick="saveCloseTicket('${t.id}')">✓ Save &amp; close</button>
+        </span>
       </div>
     </div>
   </div>`;
@@ -2791,6 +2833,40 @@ function renderTeam(){
         </div>`;
       }).join('')}
     </div>`;
+}
+
+
+function saveTicket(id){
+  const t = state.tickets.find(x=>x.id===id); if (!t) return;
+  saveListItem('tickets', t);
+  tikOpen.delete(id);
+  renderMessages();
+  toast('Ticket '+(t.ref||'')+' saved');
+}
+function saveCloseTicket(id){
+  const t = state.tickets.find(x=>x.id===id); if (!t) return;
+  t.status = 'Resolved';
+  t.resolvedAt = new Date().toISOString();
+  t.resolvedBy = state.user ? state.user.id : '';
+  saveListItem('tickets', t);
+  tikOpen.delete(id);
+  logActivity(t.ref||'-', 'Ticket resolved & closed');
+  postSlack('✅ Resolved '+(t.ref||'')+' — '+(t.subject||'')+'\nClosed by '+(state.user?state.user.name:'')+(t.fileNo?' · Booking '+t.fileNo:''));
+  renderMessages();
+  toast('Ticket '+(t.ref||'')+' resolved & closed');
+  if (t.email && confirm('Send a resolution email to '+t.name+' ('+t.email+')?')){
+    const client = localStorage.getItem('ornrecon_mailclient');
+    if (!client){ chooseMailClient(()=>sendResolutionEmail(id)); return; }
+    sendResolutionEmail(id);
+  }
+}
+function sendResolutionEmail(id){
+  const t = state.tickets.find(x=>x.id===id); if (!t) return;
+  const client = localStorage.getItem('ornrecon_mailclient');
+  const subject = 'Resolved: '+(t.subject||'your support request')+' ['+t.ref+']';
+  const body = 'Hello '+(t.name||'')+',\n\nYour request '+t.ref+(t.fileNo?' (booking '+t.fileNo+')':'')+' has been actioned and is now closed.\n\nSummary of what was done:\n'+((t.notes||[]).map(n=>'- '+n.text).join('\n')||'- Resolved by the Europe team')+'\n\nIf anything further is needed, simply submit a new request quoting '+t.ref+'.\n\nBest regards,\n'+(state.user?state.user.name:'')+'\nORN | Europe Sales & Operations';
+  sendViaClient(client, t.email||'', subject, body);
+  logActivity(t.ref||'-', 'Resolution email drafted to '+(t.email||''));
 }
 
 /* ================= USER GUIDE ================= */
@@ -2932,6 +3008,9 @@ function renderSettings(){
           <span class="what" style="max-width:140px"><input type="number" step="0.0001" value="${state.fx[c]}" ${isAdmin?'':'disabled'} onchange="state.fx['${c}']=parseFloat(this.value)||0;saveFx()"></span>
           <span class="hint" style="align-self:center">1 ${c} = ${state.fx[c]} EUR</span></div>`).join('')}
         <div class="hint">Variance = Paid (or Estimated if unpaid) minus Quoted, converted at these rates. Update monthly to keep the P&amp;L view honest.</div>
+        <div class="section-lbl">Notifications — Slack / Teams (whole team)</div>
+        <input placeholder="Paste an Incoming Webhook URL (https://hooks.slack.com/…)" value="${esc((state.notify&&state.notify.slackWebhook)||'')}" ${isAdmin?'':'disabled'} onchange="state.notify.slackWebhook=this.value.trim();saveNotify();toast('Notification webhook saved')">
+        <div class="hint">When set, a message is posted to your channel the moment a new support request arrives, and when a ticket is resolved. Works with Slack and Microsoft Teams incoming webhooks. Admin only; applies to the whole team.</div>
         <div class="section-lbl">Email client (this device)</div>
         <select onchange="localStorage.setItem('ornrecon_mailclient', this.value);">
           ${[['','Not set - ask me next time'],['outlook','Outlook (desktop app)'],['outlookweb','Outlook on the web'],['gmail','Gmail (web)'],['applemail','Apple Mail / system default'],['copy','Other webmail - copy to clipboard']].map(([v,l])=>`<option value="${v}" ${(localStorage.getItem('ornrecon_mailclient')||'')===v?'selected':''}>${l}</option>`).join('')}
