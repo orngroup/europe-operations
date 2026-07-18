@@ -363,6 +363,7 @@ let state = {
   activity: [],
   attachments: {},        // id -> meta (data loaded on demand in FIRE mode)
   refunds: [], suppliers: [], ota: [], rail: [], cards: [], directory: [], tickets: [], hotels: [],
+  notify: {slackWebhook:''},
   filters: { q:'', source:'', status:'', service:'', band:'', month:'', activityKw:'', era:'' },
   charts: {}
 };
@@ -3009,7 +3010,11 @@ function renderSettings(){
           <span class="hint" style="align-self:center">1 ${c} = ${state.fx[c]} EUR</span></div>`).join('')}
         <div class="hint">Variance = Paid (or Estimated if unpaid) minus Quoted, converted at these rates. Update monthly to keep the P&amp;L view honest.</div>
         <div class="section-lbl">Notifications — Slack / Teams (whole team)</div>
-        <input placeholder="Paste an Incoming Webhook URL (https://hooks.slack.com/…)" value="${esc((state.notify&&state.notify.slackWebhook)||'')}" ${isAdmin?'':'disabled'} onchange="state.notify.slackWebhook=this.value.trim();saveNotify();toast('Notification webhook saved')">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input id="notifyWebhook" style="flex:1;min-width:260px" placeholder="Paste an Incoming Webhook URL (https://hooks.slack.com/…)" value="${esc((state.notify&&state.notify.slackWebhook)||'')}" ${isAdmin?'':'disabled'}>
+          ${isAdmin?`<button class="btn small" onclick="saveWebhook()">Save</button>
+          <button class="btn ghost small" onclick="testWebhook()">Send test</button>`:''}
+        </div>
         <div class="hint">When set, a message is posted to your channel the moment a new support request arrives, and when a ticket is resolved. Works with Slack and Microsoft Teams incoming webhooks. Admin only; applies to the whole team.</div>
         <div class="section-lbl">Email client (this device)</div>
         <select onchange="localStorage.setItem('ornrecon_mailclient', this.value);">
@@ -3066,6 +3071,25 @@ populateLoginUsers();
 document.getElementById('loginPass').addEventListener('keydown', e=>{ if (e.key==='Enter') doLogin(); });
 initPersistence();
 if (!FIRE) tryRestoreSession(); else setTimeout(tryRestoreSession, 600);
+
+
+function saveWebhook(){
+  const inp = document.getElementById('notifyWebhook');
+  if (!inp) return;
+  const url = inp.value.trim();
+  if (url && !url.startsWith('https://')){ alert('That does not look like a webhook URL — it should start with https://'); return; }
+  state.notify = state.notify || {};
+  state.notify.slackWebhook = url;
+  saveNotify();
+  toast(url ? 'Notification webhook saved — whole team now covered' : 'Webhook cleared — notifications off');
+}
+function testWebhook(){
+  const inp = document.getElementById('notifyWebhook');
+  state.notify = state.notify || {};
+  if (inp && inp.value.trim()) { state.notify.slackWebhook = inp.value.trim(); saveNotify(); }
+  const ok = postSlack('🔔 Test from the ORN Europe Portal — notifications are working. ('+(state.user?state.user.name:'')+', '+new Date().toLocaleString('en-GB')+')');
+  toast(ok ? 'Test sent — check your Slack channel' : 'No valid webhook set');
+}
 
 </script>
 </body>
