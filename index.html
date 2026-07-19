@@ -10,15 +10,43 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <style>
 :root{
-  /* ORN corporate brand — warm near-black + brochure gold (www.orn.com) */
-  --bg:#0e0c09; --panel:#171410; --panel2:#1e1a14; --line:#2a251c; --line2:#3a3326;
-  --text:#f2efe8; --muted:#a89e8a; --faint:#6e675a;
-  --gold:#e8442a; --gold-dim:#a33420; --gold-bg:rgba(232,68,42,.10);
-  --cyan:#00a7e1; --green:#6cc766; --red:#e64a2e;
-  --ok:#57b874; --warn:#e0ab3a; --danger:#e0563f;
-  --shadow:0 4px 20px rgba(0,0,0,.35);
+  --bg:#f4f5f8; --panel:#ffffff; --panel2:#f2f4f7; --line:#e6e9ef; --line2:#d5dae3;
+  --text:#1d2433; --muted:#5f6880; --faint:#9aa2b5;
+  --gold:#cf3a1e; --gold-dim:#e06a4f; --gold-bg:rgba(207,58,30,.07);
+  --cyan:#0092c8; --green:#4aa845; --red:#d92d0e;
+  --ok:#2c9e51; --warn:#c4890c; --danger:#b3230c;
+  --shadow:0 1px 3px rgba(20,26,40,.10), 0 6px 18px rgba(20,26,40,.08);
 }
 .tile h3, .hub-title{font-family:'Source Serif 4',Georgia,serif;letter-spacing:.2px}
+header.topbar{background:#cf3a1e !important;border-bottom:none !important;color:#fff}
+header.topbar .brand .t, header.topbar .brand .t small{color:#fff !important}
+header.topbar .topnav button{color:rgba(255,255,255,.85);background:transparent;border:none;font-weight:700}
+header.topbar .topnav button:hover{color:#fff}
+header.topbar .topnav button.active{background:#fff;color:#cf3a1e;border-radius:20px;padding:6px 16px}
+header.topbar .userbox, header.topbar .userbox span{color:#fff}
+header.topbar .userbox .btn.ghost{border-color:rgba(255,255,255,.5);color:#fff;background:transparent}
+header.topbar .sync-pill{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.4)}
+header.topbar .avatar{background:#fff;color:#cf3a1e}
+.orn-logo{display:flex;align-items:flex-end;gap:2.5px;margin-right:10px}
+.orn-logo i{display:block;width:5px;border-radius:3px}
+.orn-logo i:nth-child(1){height:16px;background:#2d4468}
+.orn-logo i:nth-child(2){height:13px;background:#1d6f9b}
+.orn-logo i:nth-child(3){height:17px;background:#00a7e1}
+.orn-logo i:nth-child(4){height:12px;background:#4aa845}
+.orn-logo i:nth-child(5){height:15px;background:#f2df1d}
+.orn-logo i:nth-child(6){height:11px;background:#ffffff}
+.quickstrip{background:#12100d;color:#fff;display:flex;gap:4px;align-items:center;padding:8px 22px;flex-wrap:wrap;font-size:12.5px}
+.quickstrip .ql{color:#fff;text-decoration:none;font-weight:700;padding:5px 12px;border-radius:16px;opacity:.9}
+.quickstrip .ql:hover{background:rgba(255,255,255,.12);opacity:1}
+.quickstrip .lbl{color:rgba(255,255,255,.55);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:800;margin-right:8px}
+.tile{border:1.5px solid #cf3a1e !important;color:var(--text)}
+.tile h3{color:var(--text)}
+.tile .cnt{color:#cf3a1e;font-weight:800}
+.tile .cnt.restricted{color:var(--faint)}
+.tile.restricted{border-color:var(--line2) !important;opacity:.75;cursor:not-allowed}
+.hero{background:rgba(255,255,255,.92);border-left:5px solid #cf3a1e;border-radius:12px;padding:18px 22px;box-shadow:var(--shadow)}
+.hero h1,.hero p{color:var(--text)}
+
 [data-theme="dark"]{
   --bg:#0b0d12; --panel:#12151d; --panel2:#181c26; --line:#242a38; --line2:#2f3748;
   --text:#e8eaf0; --muted:#8b93a7; --faint:#5b6376;
@@ -163,20 +191,31 @@ table.bk td input:focus, table.bk td select:focus{border-color:var(--gold);backg
 
 <div id="appView">
   <header class="topbar">
-    <div class="brand"><div class="t">ORN <small>Europe · Main Hub</small></div></div>
+    <div class="brand" style="display:flex;align-items:center"><span class="orn-logo"><i></i><i></i><i></i><i></i><i></i><i></i></span><div class="t">ORN <small>Europe · Main Hub</small></div></div>
     <nav class="topnav">
       <button data-view="home" class="active" onclick="switchView('home')">Home</button>
+      <button onclick="window.location.href=OPS_URL">Operations</button>
       <button data-view="contracting" onclick="switchView('contracting')">Contracting</button>
-      <button data-view="directory" onclick="switchView('directory')">Supplier Directory</button>
+      <button onclick="window.location.href=OPS_URL+'?go=fleet'">Fleet</button>
+      <button data-view="directory" onclick="switchView('directory')">Directory</button>
+      <button onclick="if(finAllowed())window.location.href=OPS_URL+'?go=finance';else alert('Finance is restricted to Ajay, Sahil and Raj.')">Finance</button>
     </nav>
     <div class="userbox">
       <span class="sync-pill" id="syncPill">Local</span>
       <div class="avatar" id="userAvatar">--</div>
       <span id="userName"></span>
-      <button class="btn ghost small" id="themeBtn" onclick="toggleTheme()">Dark mode</button>
       <button class="btn ghost small" onclick="doLogout()">Sign out</button>
     </div>
   </header>
+  <div class="quickstrip">
+    <span class="lbl">Quick access</span>
+    <a class="ql" href="./ops/?go=messages">📨 Messages</a>
+    <a class="ql" href="./ops/?go=guestchats">💬 Guest chats</a>
+    <a class="ql" href="./ops/?go=arrivals">🛬 Arrivals (7 days)</a>
+    <a class="ql" href="./ops/?go=confirmations">✅ Confirmations queue</a>
+    <a class="ql" href="./support/" target="_blank">📝 Support form</a>
+    <a class="ql" href="./chat/" target="_blank">🧑‍🤝‍🧑 Guest chat page</a>
+  </div>
   <main>
     <div class="view active" id="view-home"></div>
     <div class="view" id="view-contracting"></div>
@@ -208,7 +247,6 @@ const OPS_URL = './ops/';
 
 const COLL = { users:'recon_users', activity:'recon_activity', directory:'recon_directory',
                hotels:'recon_hotels', chains:'recon_chains', outreach:'recon_outreach' };
-const DIR_PASS = 'ORNCONFIDENTIAL';
 const DEFAULT_USERS = [
   {id:'AK', name:'Ajay Kawa', pass:'ornopsak', role:'admin', position:'CEO', phone:'07810 778 794', email:'ajay.kawa@orn.com', company:'ORN Europe', country:'UK'},
   {id:'KN', name:'Ken Newton', pass:'ornopskn', role:'editor', position:'Commercial Manager', phone:'07984 3511117', email:'ken.newton@orn.com', company:'ORN Europe', country:'UK'},
@@ -396,32 +434,38 @@ function renderHome(){
       <div class="tile" onclick="window.location.href=OPS_URL">
         <div class="ic">🗂️</div>
         <h3>Operations</h3>
-        <p>Booking reconfirmations, quality control, refunds, credit cards, weekly &amp; monthly reports — the full Operations &amp; Reconfirmation portal.</p>
-        <div class="cnt">Open portal →</div>
+        <p>Booking reconfirmations, arrivals, quality control, refunds, credit cards, weekly &amp; monthly reports — the full Operations portal.</p>
+        <div class="cnt">Access →</div>
       </div>
       <div class="tile" onclick="switchView('contracting')">
         <div class="ic">🏨</div>
         <h3>Contracting</h3>
-        <p>Hotel target list with seasonal rates and contract status, chain group-sales contacts, and the outreach tracker.</p>
-        <div class="cnt">${state.hotels.length} hotels · ${contracted} contracted →</div>
+        <p>Hotel target list with seasonal rates and contract status, chain group-sales contacts, and the outreach tracker (${state.hotels.length} hotels · ${contracted} contracted).</p>
+        <div class="cnt">Access →</div>
       </div>
-      <div class="tile" onclick="window.location.href=OPS_URL+'?go=finance'">
+      <div class="tile" onclick="window.location.href=OPS_URL+'?go=fleet'">
+        <div class="ic">🚌</div>
+        <h3>Our Fleet</h3>
+        <p>The European Transport Division — 96+ vehicles: touring coaches, Mercedes private transfer fleet and service streams, with live unit counts.</p>
+        <div class="cnt">Access →</div>
+      </div>
+      <div class="tile ${finAllowed()?'':'restricted'}" onclick="${finAllowed()? `window.location.href=OPS_URL+'?go=finance'` : `alert('Finance is restricted to Ajay, Sahil and Raj.')`}">
         <div class="ic">💷</div>
         <h3>Finance</h3>
-        <p>Savings &amp; losses, monthly and yearly P&amp;L, takeover comparison, card balances and invoice-back. Restricted — finance password required.</p>
-        <div class="cnt">Open (restricted) →</div>
+        <p>Savings &amp; losses, monthly and yearly P&amp;L, takeover comparison, card balances and invoice-back. Restricted to Ajay, Sahil and Raj.</p>
+        <div class="cnt ${finAllowed()?'':'restricted'}">${finAllowed()? 'Access →' : 'Restricted Access'}</div>
       </div>
-      <div class="tile soon" onclick="alert('Sales workspace coming soon — send Ajay the data to build it.')">
+      <div class="tile ${dirAllowed()?'':'restricted'}" onclick="${dirAllowed()? `switchView('directory')` : `alert('The Supplier Directory is restricted — ask Ajay for access.')`}">
+        <div class="ic">🔒</div>
+        <h3>Supplier Directory</h3>
+        <p>The confidential master directory — every supplier's contacts, commercial terms and system logins (${state.directory.length} suppliers). Senior team only.</p>
+        <div class="cnt ${dirAllowed()?'':'restricted'}">${dirAllowed()? 'Access →' : 'Restricted Access'}</div>
+      </div>
+      <div class="tile restricted" onclick="alert('Sales workspace coming soon — send Ajay the data to build it.')">
         <div class="ic">📈</div>
         <h3>Sales</h3>
         <p>Sales pipeline and performance workspace.</p>
-        <div class="cnt">Coming soon</div>
-      </div>
-      <div class="tile" onclick="switchView('directory')">
-        <div class="ic">🔒</div>
-        <h3>Supplier Directory</h3>
-        <p>The confidential master directory — every supplier's contacts, commercial terms and system logins. Additional password required.</p>
-        <div class="cnt">${state.directory.length} suppliers →</div>
+        <div class="cnt restricted">Coming soon</div>
       </div>
     </div>`;
 }
@@ -628,11 +672,14 @@ function addOutreach(){ saveItem('outreach',{priority:'',chain:'',hotels:'',team
 /* ================= SUPPLIER DIRECTORY (shared with Ops portal) ================= */
 let dirFilters = { q:'', cat:'', dest:'', src:'', login:'', sort:'name', dir:1 };
 let dirReveal = new Set();
-function dirUnlocked(){ return sessionStorage.getItem('ornhub_dirok')==='1'; }
-function tryUnlockDirectory(){
-  const p = prompt('This area contains supplier logins and commercial terms.\nEnter the confidential access password:');
-  if (p === DIR_PASS){ sessionStorage.setItem('ornhub_dirok','1'); return true; }
-  if (p !== null) alert('Incorrect password. Access to the supplier directory is restricted — ask Ajay.');
+const FIN_USERS = ['AK','SN','RK'];
+const DIR_USERS = ['AK','KN','RK','SN'];
+function finAllowed(){ return !!(state.user && FIN_USERS.includes(state.user.id)); }
+function dirAllowed(){ return !!(state.user && DIR_USERS.includes(state.user.id)); }
+function dirUnlocked(){ return dirAllowed(); }
+function tryUnlockDir(){
+  if (dirAllowed()) return true;
+  alert('The Supplier Directory is restricted — ask Ajay for access.');
   return false;
 }
 function renderDirectory(){
@@ -644,8 +691,7 @@ function renderDirectory(){
       <div class="vsub">Contacts, commercial terms and system logins — shared live with the Operations portal</div>
       <div class="card" style="max-width:520px">
         <h3>Confidential area</h3>
-        <p style="margin-bottom:12px">This area holds every supplier's contact details, commission terms, portal logins and passwords. Access requires the additional confidential password issued personally by Ajay.</p>
-        <button class="btn" onclick="if(tryUnlockDirectory())renderDirectory()">Enter password</button>
+        <p style="margin-bottom:12px">This area holds every supplier's contact details, commission terms, portal logins and passwords. Access is limited to the senior team (Ajay, Ken, Raj and Sahil).</p>
       </div>`;
     return;
   }
@@ -665,8 +711,7 @@ function renderDirectory(){
     <div class="flex-between" style="margin-bottom:6px">
       <div><h2 class="vtitle">Supplier Directory <span class="badge" style="vertical-align:middle">Confidential</span></h2>
       <div class="vsub">${rows.length} of ${state.directory.length} suppliers · shared live with the Operations portal — edits appear in both</div></div>
-      <span><button class="btn ghost small" onclick="sessionStorage.removeItem('ornhub_dirok');renderDirectory()">Lock</button>
-      <button class="btn" onclick="addDirEntry()">+ New supplier</button></span>
+      <span>      <button class="btn" onclick="addDirEntry()">+ New supplier</button></span>
     </div>
     <div class="toolbar">
       <input type="search" placeholder="Search anything — name, contact, email, notes, login…" value="${esc(f.q)}" oninput="dirFilters.q=this.value;renderDirectory()">
@@ -760,7 +805,7 @@ if (!FIRE) tryRestoreSession(); else setTimeout(tryRestoreSession, 600);
       var st = document.createElement('style');
       st.textContent = '.tiles-wrap-bg{}' +
         'body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;' +
-        'background:url(data:image/jpeg;base64,' + MAIN_BG + ') center top/cover no-repeat fixed;opacity:.10}' +
+        'background:url(data:image/jpeg;base64,' + MAIN_BG + ') center top/cover no-repeat fixed;opacity:1}' +
         '';
       document.head.appendChild(st);
     }
