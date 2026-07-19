@@ -55,6 +55,11 @@ a{color:var(--cyan)}
 .login-card input{background:#fff;border-color:#d5dae3;color:#1d2433}
 @media(max-width:760px){#loginView{padding:0 16px;align-items:center}#loginView::before{background:rgba(10,12,18,.55)}}
 .login-card h1{font-size:20px;font-weight:700;letter-spacing:.3px}
+.login-card input,.login-card select{background:#ffffff;color:#1d2433;border-color:#d5dae3}
+.login-card input:focus,.login-card select:focus{border-color:#cf3a1e}
+.login-card .btn{background:#cf3a1e;color:#fff}
+.login-card a{color:#cf3a1e}
+.login-card ::placeholder{color:#9aa2b5}
 .login-card .sub{color:var(--muted);font-size:12.5px;margin-top:-8px}
 .btn{background:var(--gold);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-weight:700;font-size:13.5px;letter-spacing:.2px}
 [data-theme="dark"] .btn{color:#ffffff}
@@ -259,12 +264,12 @@ table.bk td input:focus, table.bk td select:focus{border-color:var(--gold);backg
 
 <div id="appView">
   <div class="mobile-top">
-    <div class="side-brand" style="padding:0"><div class="t" style="font-size:16px;letter-spacing:3px">ORN <small>Ops Hub</small></div></div>
+    <div class="side-brand" style="padding:0;cursor:pointer" title="Go to Dashboard" onclick="switchView('dashboard')"><div class="t" style="font-size:16px;letter-spacing:3px">ORN <small>Ops Hub</small></div></div>
     <button class="btn ghost small" onclick="document.getElementById('sideNav').classList.toggle('open')">☰ Menu</button>
   </div>
   <div class="layout">
     <aside class="sidebar" id="sideNav">
-      <div class="side-brand">
+      <div class="side-brand" style="cursor:pointer" title="Go to Dashboard" onclick="switchView('dashboard')">
         <div class="t" style="font-size:17px;letter-spacing:3px">ORN <small>Ops &amp; Reconfirmation</small></div>
       </div>
       <nav class="side" id="sideMenu"></nav>
@@ -272,6 +277,7 @@ table.bk td input:focus, table.bk td select:focus{border-color:var(--gold);backg
         <span class="sync-pill" id="syncPill">Local</span>
         <div class="side-user"><div class="avatar" id="userAvatar">--</div><span id="userName"></span></div>
         <div class="row2">
+          <button class="btn ghost small" onclick="window.location.href='../'" title="Back to the ORN Europe Hub home">⌂ Home</button>
           <button class="btn ghost small" id="themeBtn" onclick="toggleTheme()">Dark mode</button>
           <button class="btn ghost small" onclick="doLogout()">Sign out</button>
         </div>
