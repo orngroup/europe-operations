@@ -163,6 +163,11 @@ table.bk td input:focus, table.bk td select:focus{border-color:var(--gold);backg
 .close-x:hover{color:var(--text);border-color:var(--gold)}
 @media(max-width:820px){main{padding:16px}}
 </style>
+<script>try{if(sessionStorage.getItem('orn_sso')||sessionStorage.getItem('ornhub_user')){document.documentElement.classList.add('sso')}}catch(e){}</script>
+<style>
+html.sso #loginView{display:none!important}
+html.sso body::before{content:'Signing you in\2026';position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f5f8;color:#5f6880;font-weight:800;letter-spacing:1px;z-index:60;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px}
+</style>
 </head>
 <body>
 
@@ -387,6 +392,7 @@ function doLogin(){
 }
 function doLogout(){ sessionStorage.removeItem('ornhub_user'); sessionStorage.removeItem('orn_sso'); location.reload(); }
 function clearSsoSplash(ok){
+  try{ document.documentElement.classList.remove('sso'); }catch(e){}
   const sp = document.getElementById('ssoSplash'); if (sp) sp.remove();
   if (!ok){ const lv = document.getElementById('loginView'); if (lv) lv.style.display=''; }
 }
