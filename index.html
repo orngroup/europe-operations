@@ -27,14 +27,6 @@ header.topbar .userbox, header.topbar .userbox span{color:#fff}
 header.topbar .userbox .btn.ghost{border-color:rgba(255,255,255,.5);color:#fff;background:transparent}
 header.topbar .sync-pill{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.4)}
 header.topbar .avatar{background:#fff;color:#cf3a1e}
-.orn-logo{display:flex;align-items:flex-end;gap:2.5px;margin-right:10px}
-.orn-logo i{display:block;width:5px;border-radius:3px}
-.orn-logo i:nth-child(1){height:16px;background:#2d4468}
-.orn-logo i:nth-child(2){height:13px;background:#1d6f9b}
-.orn-logo i:nth-child(3){height:17px;background:#00a7e1}
-.orn-logo i:nth-child(4){height:12px;background:#4aa845}
-.orn-logo i:nth-child(5){height:15px;background:#f2df1d}
-.orn-logo i:nth-child(6){height:11px;background:#ffffff}
 .quickstrip{background:#12100d;color:#fff;display:flex;gap:4px;align-items:center;padding:8px 22px;flex-wrap:wrap;font-size:12.5px}
 .quickstrip .ql{color:#fff;text-decoration:none;font-weight:700;padding:5px 12px;border-radius:16px;opacity:.9}
 .quickstrip .ql:hover{background:rgba(255,255,255,.12);opacity:1}
@@ -191,7 +183,7 @@ table.bk td input:focus, table.bk td select:focus{border-color:var(--gold);backg
 
 <div id="appView">
   <header class="topbar">
-    <div class="brand" style="display:flex;align-items:center"><span class="orn-logo"><i></i><i></i><i></i><i></i><i></i><i></i></span><div class="t">ORN <small>Europe · Main Hub</small></div></div>
+    <div class="brand" style="display:flex;align-items:center;cursor:pointer" title="Home" onclick="switchView('home')"><div class="t" style="letter-spacing:4px;font-size:18px">ORN <small>Europe · Main Hub</small></div></div>
     <nav class="topnav">
       <button data-view="home" class="active" onclick="switchView('home')">Home</button>
       <button onclick="window.location.href=OPS_URL">Operations</button>
@@ -394,10 +386,14 @@ function doLogin(){
   renderAll();
 }
 function doLogout(){ sessionStorage.removeItem('ornhub_user'); sessionStorage.removeItem('orn_sso'); location.reload(); }
+function clearSsoSplash(ok){
+  const sp = document.getElementById('ssoSplash'); if (sp) sp.remove();
+  if (!ok){ const lv = document.getElementById('loginView'); if (lv) lv.style.display=''; }
+}
 function tryRestoreSession(){
-  if (state.user) return;
+  if (state.user) return clearSsoSplash(true);
   const s = sessionStorage.getItem('ornhub_user') || sessionStorage.getItem('orn_sso');
-  if (!s) return;
+  if (!s) return clearSsoSplash(false);
   const {id} = JSON.parse(s);
   const users = state.users.length? state.users : DEFAULT_USERS;
   const found = users.find(x=>x.id===id);
@@ -407,6 +403,11 @@ function tryRestoreSession(){
     document.getElementById('appView').style.display='block';
     document.getElementById('userAvatar').textContent=found.id;
     document.getElementById('userName').textContent=found.name;
+    clearSsoSplash(true);
+    try{
+      const go = new URLSearchParams(location.search).get('go');
+      if (go==='contracting'||go==='directory') switchView(go);
+    }catch(e){}
     renderAll();
   }
 }
@@ -808,6 +809,22 @@ if (!FIRE) tryRestoreSession(); else setTimeout(tryRestoreSession, 600);
         'background:url(data:image/jpeg;base64,' + MAIN_BG + ') center top/cover no-repeat fixed;opacity:1}' +
         '';
       document.head.appendChild(st);
+    }
+  }catch(e){}
+})();
+
+(function(){
+  try{
+    if (sessionStorage.getItem('orn_sso') || sessionStorage.getItem('ornhub_user')){
+      const lv = document.getElementById('loginView');
+      if (lv && lv.style.display!=='none'){
+        lv.style.display='none';
+        const sp = document.createElement('div');
+        sp.id='ssoSplash';
+        sp.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f5f8;z-index:60;font-weight:800;color:#5f6880;letter-spacing:1px';
+        sp.textContent='Signing you in\u2026';
+        document.body.appendChild(sp);
+      }
     }
   }catch(e){}
 })();
