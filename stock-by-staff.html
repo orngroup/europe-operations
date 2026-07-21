@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock By Staff | CapEye Auto Capital</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="./firebase-config.js"></script>
+<script src="./ac-data.js"></script>
+<script src="firebase-init.js?v=20250720"></script>
+<script>
+// ── SESSION CHECK ────────────────────────────────────────────
+(function() {
+  var ts = parseInt(localStorage.getItem('ce_auth_ts') || '0');
+  var TTL = 12 * 60 * 60 * 1000; // 12 hours
+  if (!ts || (Date.now() - ts) > TTL) {
+    // Clear session and redirect to login
+    ['ce_user_id','ce_user_name','ce_user_dept','ce_user_email',
+     'ce_user_admin','ce_user_price','ce_user_mgr','ce_auth_ts'].forEach(function(k){
+      localStorage.removeItem(k);
+    });
+    window.location.replace('login.html');
+  }
+})();
+</script>
+<style>
+:root{
+  --bg:#f4f6f9;--bg2:#fff;--bg3:#f0f2f6;--bg4:#eaecf2;
+  --border:#e2e6ed;--border2:#c8d0dc;
+  --red:#C8102E;--red2:#a00d24;--red-light:rgba(200,16,46,.07);
+  --blue:#003DA5;--blue2:#002d7a;--blue-light:rgba(0,61,165,.07);
+  --gold:#d4980a;--gold-light:rgba(212,152,10,.08);
+  --green:#1a7f37;--green-light:rgba(26,127,55,.07);
+  --orange:#d4600a;--orange-light:rgba(212,96,10,.08);
+  --text:#0f1923;--text2:#3d4d5c;--muted:#7a8fa6;
+  --shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,.1),0 12px 40px rgba(0,0,0,.07);
+  --card-radius:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ─ HEADER ─ */
+
+.header-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+/* ─ MAIN ─ */
+.main{max-width:1600px;margin:0 auto;padding:28px}
+.page-title{margin-bottom:20px;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.page-title h1{/* font-size normalised by global CSS */font-weight:800;letter-spacing:-.3px}
+.page-title h1 .r{color:var(--red)}
+.page-title p{color:var(--muted);font-size:12px;margin-top:3px}
+
+/* ─ KPI STRIP ─ */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:22px}
+.kpi{background:#fff;border:1px solid var(--border);border-top:3px solid var(--kc,var(--blue));border-radius:var(--card-radius);padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi-label{font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+.kpi-val{font-size:28px;font-weight:800;line-height:1;color:var(--kc,var(--text))}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.kpi i{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:26px;opacity:.05}
+
+/* ─ TWO-COL LAYOUT ─ */
+.layout{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+
+/* ─ STAFF PANEL ─ */
+.staff-panel{background:#fff;border:1px solid var(--border);border-radius:var(--card-radius);overflow:hidden;box-shadow:var(--shadow)}
+.panel-hdr{padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:space-between}
+.panel-hdr-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+.staff-search{width:100%;padding:10px 14px;border:none;border-bottom:1px solid var(--border);font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none;background:var(--bg3);color:var(--text)}
+.staff-search::placeholder{color:var(--muted)}
+.staff-search:focus{background:#fff}
+.staff-list{overflow-y:auto;max-height:calc(100vh - 320px)}
+.staff-row{padding:11px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);transition:all .15s;position:relative}
+.staff-row:last-child{border-bottom:none}
+.staff-row:hover{background:var(--bg3)}
+.staff-row.selected{background:var(--blue-light);border-left:3px solid var(--blue)}
+.staff-row.selected .sr-name{color:var(--blue);font-weight:700}
+.sr-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;letter-spacing:.5px}
+.sr-info{flex:1;min-width:0}
+.sr-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-role{font-size:10px;color:var(--muted);margin-top:1px}
+.sr-dept-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:.5px;flex-shrink:0}
+.sr-count-badges{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.sr-badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.sr-badge.active{background:var(--blue-light);color:var(--blue)}
+.sr-badge.done{background:var(--green-light);color:var(--green)}
+.sr-badge.next{background:var(--gold-light);color:var(--gold)}
+
+/* ─ BAR CHART ─ */
+.chart-panel{background:#fff;border:1px solid var(--border);border-radius:var(--card-radius);padding:20px;box-shadow:var(--shadow);margin-bottom:18px}
+.chart-panel-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.chart-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+.chart-legend{display:flex;gap:12px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:var(--text2)}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.bar-chart{display:flex;flex-direction:column;gap:8px}
+.bar-row{display:grid;grid-template-columns:130px 1fr auto;gap:10px;align-items:center;cursor:pointer;padding:4px 6px;border-radius:7px;transition:all .15s}
+.bar-row:hover{background:var(--bg3)}
+.bar-row.selected{background:var(--blue-light)}
+.bar-name{font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-row.selected .bar-name{color:var(--blue);font-weight:700}
+.bar-track{height:18px;border-radius:6px;background:var(--bg3);position:relative;overflow:hidden;display:flex}
+.bar-seg{height:100%;border-radius:0;transition:width .4s cubic-bezier(.4,0,.2,1);min-width:0}
+.bar-seg:first-child{border-radius:6px 0 0 6px}
+.bar-seg:last-child{border-radius:0 6px 6px 0}
+.bar-seg.only{border-radius:6px}
+.bar-total{font-size:11px;font-weight:800;color:var(--text);font-family:'IBM Plex Mono',monospace;min-width:24px;text-align:right}
+
+/* ─ DETAIL PANEL ─ */
+.detail-panel{background:#fff;border:1px solid var(--border);border-radius:var(--card-radius);overflow:hidden;box-shadow:var(--shadow)}
+.detail-hdr{padding:16px 20px;border-bottom:1px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.detail-staff-info{display:flex;align-items:center;gap:12px}
+.detail-avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800}
+.detail-name{font-size:16px;font-weight:800;color:var(--text)}
+.detail-role{font-size:11px;color:var(--muted);margin-top:2px}
+.detail-stats{display:flex;gap:10px}
+.d-stat{text-align:center;padding:6px 14px;background:#fff;border:1px solid var(--border);border-radius:8px}
+.d-stat-v{font-size:20px;font-weight:800;line-height:1}
+.d-stat-l{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+/* ─ VEHICLE TABLE ─ */
+.filter-tabs{display:flex;gap:6px;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.ftab{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--muted);transition:all .15s}
+.ftab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.ftab.active.done{background:var(--green);border-color:var(--green)}
+.ftab.active.next{background:var(--gold);border-color:var(--gold)}
+.ac-table{width:100%;border-collapse:collapse;font-size:12px}
+.ac-table th{padding:9px 14px;text-align:left;font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:2px solid var(--border);background:var(--bg3);white-space:nowrap}
+.ac-table td{padding:9px 14px;border-bottom:1px solid var(--border)}
+.ac-table tr:last-child td{border-bottom:none}
+.ac-table tr:hover td{background:var(--bg3)}
+.reg-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;background:#fff9db;color:#7a5c00;padding:3px 8px;border-radius:5px;border:1px solid #e6d080;letter-spacing:1.5px;white-space:nowrap}
+.stage-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:6px;font-size:10px;font-weight:700;white-space:nowrap}
+.rel-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.rel-current{background:var(--blue-light);color:var(--blue)}
+.rel-completed{background:var(--green-light);color:var(--green)}
+.rel-next{background:var(--gold-light);color:var(--gold)}
+.days-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px}
+.days-ok{background:var(--green-light);color:var(--green)}
+.days-warn{background:var(--gold-light);color:var(--gold)}
+.days-crit{background:var(--red-light);color:var(--red)}
+.empty-state{text-align:center;padding:48px 24px;color:var(--muted)}
+.empty-state i{font-size:36px;margin-bottom:12px;display:block;opacity:.3}
+
+/* ─ PLACEHOLDER ─ */
+.placeholder-card{background:#fff;border:1px solid var(--border);border-radius:var(--card-radius);padding:56px 32px;text-align:center;box-shadow:var(--shadow)}
+.placeholder-card i{font-size:48px;color:var(--border2);margin-bottom:16px;display:block}
+.placeholder-card h3{font-size:16px;font-weight:700;color:var(--text2);margin-bottom:6px}
+.placeholder-card p{font-size:13px;color:var(--muted);max-width:340px;margin:0 auto}
+
+/* ─ TOAST ─ */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+--navy:#003DA5;--purple:#7c3aed;--ink2:#3d4d5c;--ink3:#7a8fa6;
+
+/* ── NAV ── */
+.nav{background:#fff;border-bottom:1px solid #e2e6ed;display:flex;align-items:center;padding:0 16px;height:52px;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06);gap:4px}
+.nav-brand{display:flex;align-items:center;gap:6px;text-decoration:none;flex-shrink:0}
+.nav-brand img{height:26px;width:auto}
+.nav-mark{background:#003DA5;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px}
+.nav-div{width:1px;background:#e2e6ed;height:22px;margin:0 6px;flex-shrink:0}
+.nav-links{display:flex;align-items:center;gap:1px;flex:1;overflow-x:auto;scrollbar-width:none;min-width:0}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-link{display:flex;align-items:center;gap:4px;padding:5px 9px;border-radius:6px;font-size:11.5px;font-weight:600;color:#3d4d5c;text-decoration:none;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.nav-link:hover{background:#f0f2f6;color:#0f1923}
+.nav-link.active{background:#003DA5;color:#fff}
+.nav-link i{font-size:10px}
+.nav-right{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:6px}
+.nav-tools{display:flex;align-items:center;gap:3px}
+.nav-tool{font-size:10px;font-weight:700;color:#003DA5;text-decoration:none;padding:3px 7px;border-radius:5px;border:1px solid rgba(0,61,165,.2);background:rgba(0,61,165,.05);white-space:nowrap;transition:all .15s}
+.nav-tool:hover{background:#003DA5;color:#fff}
+.nav-user{font-size:11px;font-weight:700;color:#fff;background:#003DA5;padding:4px 10px;border-radius:6px}
+.nav-import{font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;background:#f0f2f6;color:#7a8fa6;white-space:nowrap}
+.nav-import.fresh{background:#d1fae5;color:#065f46}
+.nav-import.stale{background:#fef3c7;color:#92400e}
+
+
+/* ═══════════════════════════════════════════════════════════
+   CAPEYE — GLOBAL TYPOGRAPHY & SPACING SYSTEM
+   All pages must use these values. Do not override.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Page title — the big heading at top of each page */
+.page-title, h1.page-title, h1 {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: #111827 !important;
+  letter-spacing: -0.3px !important;
+  line-height: 1.2 !important;
+  margin-bottom: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+/* Red accent word in titles (e.g. "Key Dashboard", "Stock Analytics") */
+h1 .r, h1 span.r, .page-title .r { color: #C8102E !important; font-weight: 800 !important; }
+
+/* Page subtitle */
+.page-sub, h1 + p, h1 + div.page-sub {
+  font-size: 12px !important;
+  color: #6B7280 !important;
+  font-weight: 400 !important;
+  margin-top: 2px !important;
+  margin-bottom: 0 !important;
+}
+
+/* Section headings inside cards */
+h2, .section-title, .card-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+}
+
+/* Card header labels (ALL CAPS small) */
+.card-h, .card-hdr, [class*="card-h"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  color: #6B7280 !important;
+}
+
+/* Body text */
+body {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: #374151 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Table headers */
+th, .ac-table th, thead th {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+}
+
+/* Table body cells */
+td, .ac-table td {
+  font-size: 12px !important;
+  color: #374151 !important;
+}
+
+/* KPI values */
+.kpi-v, .kpi-value, [class*="kpi-v"] {
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+}
+
+/* KPI labels */
+.kpi-l, .kpi-label, [class*="kpi-l"] {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+  margin-top: 4px !important;
+}
+
+/* Buttons — consistent sizing */
+.btn, button[class*="btn"], .tb-btn {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Badges / tags */
+.badge, [class*="-badge"], [class*="-tag"] {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+/* Form labels */
+.form-label, label[class*="form-label"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+}
+
+/* Form inputs */
+input, select, textarea {
+  font-size: 13px !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Nav links — keep compact */
+.nav-link {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+}
+
+/* Registration plates — always mono */
+[class*="reg"], [class*="-plate"] {
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-weight: 700 !important;
+}
+
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="index.html"><img src="auto-capital-logo.png" alt="AC" onerror="this.style.display='none'"><span class="nav-mark" style="margin-left:4px">CE</span></a>
+  <div class="nav-div"></div>
+  <div class="nav-links">
+    <a class="nav-link" href="index.html"><i class="fas fa-gauge-high"></i> Dashboard</a>
+    <a class="nav-link" href="workflow.html"><i class="fas fa-arrows-rotate"></i> Workflow</a>
+    <a class="nav-link" href="inventory.html"><i class="fas fa-car"></i> Inventory</a>
+    <a class="nav-link" href="alerts.html"><i class="fas fa-bell"></i> Alerts</a>
+    <a class="nav-link" href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a>
+    <a class="nav-link" href="keys.html"><i class="fas fa-key"></i> Keys</a>
+    <a class="nav-link" href="auction.html"><i class="fas fa-gavel"></i> Auction</a>
+    <a class="nav-link" href="accessories.html"><i class="fas fa-wrench"></i> Accessories</a>
+    <a class="nav-link" href="aftersales.html"><i class="fas fa-headset"></i> Aftersales</a>
+    <a class="nav-link" href="staff-jobs.html"><i class="fas fa-clipboard-list"></i> Staff Jobs</a>
+    <a class="nav-link" href="import.html"><i class="fas fa-file-import"></i> Import</a>
+    <a class="nav-link" href="audit.html"><i class="fas fa-list-check"></i> Audit</a>
+    <a class="nav-link" href="team.html"><i class="fas fa-users"></i> Team</a>
+    <a class="nav-link" href="admin.html"><i class="fas fa-cog"></i> Admin</a>
+  </div>
+  <div class="nav-bell" id="navBell" onclick="openNotifPanel()" title="Notifications">
+    <i class="fas fa-bell"></i>
+    <span class="bell-badge" id="bellBadge" style="display:none">0</span>
+  </div>
+  <div class="nav-right">
+    <div class="nav-tools">
+      <a class="nav-tool" href="https://trade.hpi.co.uk/trade/preLogin.do" target="_blank">HPI</a>
+      <a class="nav-tool" href="https://www.autocapital.co.uk/" target="_blank">Website</a>
+      <a class="nav-tool" href="https://www.autocapital.co.uk/finance.php" target="_blank">Finance</a>
+    </div>
+    <span class="nav-import" id="lastImportBadge">—</span>
+    <button onclick="if(confirm('Sign out of CapEye?'))doLogout()" style="padding:5px 12px;background:rgba(200,16,46,.08);border:1px solid rgba(200,16,46,.2);border-radius:6px;color:#C8102E;font-size:11px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
+    <span class="nav-user" id="nav-user">Keith Hardy</span>
+  </div>
+</nav>
+
+<div class="shell">
+
+  <!-- PAGE TITLE + FILTER BAR -->
+  <div class="page-title" style="flex-wrap:wrap;gap:12px">
+    <div>
+      <h1>Stock <span class="r">By Staff</span></h1>
+      <p>Filter by department or stage — select a team member to drill into their vehicle queue</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="globalSearch" placeholder="🔍  Search name, reg or model..." style="padding:8px 14px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'IBM Plex Sans',sans-serif;outline:none;width:220px;background:#fff" oninput="applyFilters()">
+      <select id="fDept" onchange="applyFilters()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'IBM Plex Sans',sans-serif;outline:none;background:#fff;color:var(--text)">
+        <option value="">All Departments</option>
+      </select>
+      <select id="fStage" onchange="applyFilters()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'IBM Plex Sans',sans-serif;outline:none;background:#fff;color:var(--text)">
+        <option value="">All Stages</option>
+      </select>
+      <select id="fRelation" onchange="applyFilters()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'IBM Plex Sans',sans-serif;outline:none;background:#fff;color:var(--text)">
+        <option value="">All Activity</option>
+        <option value="current">🔵 Currently Working On</option>
+        <option value="completed">✅ Completed Stages</option>
+        <option value="next">⏭ Next To Receive</option>
+      </select>
+      <button onclick="clearFilters()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'IBM Plex Sans',sans-serif;background:#fff;color:var(--muted);cursor:pointer" title="Clear all filters"><i class="fas fa-times"></i> Clear</button>
+    </div>
+  </div>
+
+  <!-- KPI STRIP -->
+  <div class="kpi-row" id="kpiRow">
+    <div class="kpi" style="--kc:var(--blue)"><div class="kpi-label">Total Staff</div><div class="kpi-val" id="k-staff">0</div><div class="kpi-sub">Showing</div><i class="fas fa-users"></i></div>
+    <div class="kpi" style="--kc:var(--red)"><div class="kpi-label">Active Now</div><div class="kpi-val" id="k-active">0</div><div class="kpi-sub">Currently assigned</div><i class="fas fa-bolt"></i></div>
+    <div class="kpi" style="--kc:var(--green)"><div class="kpi-label">Stages Completed</div><div class="kpi-val" id="k-done">0</div><div class="kpi-sub">Across filtered staff</div><i class="fas fa-check-circle"></i></div>
+    <div class="kpi" style="--kc:var(--gold)"><div class="kpi-label">Pending Handovers</div><div class="kpi-val" id="k-pending">0</div><div class="kpi-sub">Awaiting next stage</div><i class="fas fa-exchange-alt"></i></div>
+    <div class="kpi" style="--kc:var(--orange)"><div class="kpi-label">Busiest Dept</div><div class="kpi-val" id="k-dept" style="font-size:14px;padding-top:4px">—</div><div class="kpi-sub">Most vehicles in stage</div><i class="fas fa-building"></i></div>
+  </div>
+
+  <!-- BAR CHART -->
+  <div class="chart-panel">
+    <div class="chart-panel-hdr">
+      <div class="chart-title">Workload Overview — Vehicles Per Staff Member</div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Currently working on</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Completed stages</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div>Next to receive</div>
+      </div>
+    </div>
+    <div class="bar-chart" id="barChart"></div>
+  </div>
+
+  <!-- TWO-COL -->
+  <div class="layout">
+
+    <!-- STAFF LIST -->
+    <div class="staff-panel">
+      <div class="panel-hdr">
+        <div class="panel-hdr-title">Team Members</div>
+        <span id="staffCount" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+      <input class="staff-search" id="staffSearch" placeholder="🔍  Filter by name or dept..." oninput="applyFilters()">
+      <div class="staff-list" id="staffList"></div>
+    </div>
+
+    <!-- DETAIL VIEW -->
+    <div id="detailArea">
+      <div class="placeholder-card">
+        <i class="fas fa-user-circle"></i>
+        <h3>Select a team member</h3>
+        <p>Click any name from the list or bar chart to see all vehicles assigned to, completed by, or queued for that person</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── COLOUR MAPS ───────────────────────────────────────────────────
+const DEPT_COLORS = {
+  'Management':'#64748b','Sales':'#3b82f6','Workshop':'#ef4444',
+  'Valeting':'#10b981','Marketing':'#8b5cf6','Finance':'#a855f7',
+  'Bodyshop':'#f97316','Intake':'#6366f1'
+};
+const STAGE_COLORS = {
+  'Intake':'#6366f1','Bodywork':'#f59e0b','Paint':'#f97316',
+  'Legal & Docs':'#8b5cf6','Mechanical':'#ef4444','External Work':'#dc2626',
+  'Valeting':'#10b981','Fault Overview':'#06b6d4','Advertising':'#3b82f6',
+  'Test Drive':'#84cc16','Accounts':'#a855f7','Management':'#64748b'
+};
+
+function initials(n){return (n||'').split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2);}
+function deptColor(d){return DEPT_COLORS[d]||'#888';}
+function fmt(n){return n?'£'+Number(n).toLocaleString('en-GB'):'—';}
+
+// ── STATE ────────────────────────────────────────────────────────
+let selectedStaff = null;
+let activeFilter  = 'all';
+let vehicles      = [];
+let staffData     = [];
+let filteredStaff = [];
+
+// ── BUILD WORKLOAD ────────────────────────────────────────────────
+function buildStaffWorkload() {
+  vehicles = getVehicles();
+  staffData = AC_STAFF.map(s => {
+    const active = [], done = [], next = [];
+    vehicles.forEach(v => {
+      const cur = AC_WORKFLOW_STAGES.find(st => st.name === v.workflowStage);
+      if (!cur) return;
+      if (cur.dept === s.dept) active.push({...v, relation:'current', stage:cur.name});
+      for (let i = 0; i < cur.id - 1; i++) {
+        const st = AC_WORKFLOW_STAGES[i];
+        if (st && st.dept === s.dept) { done.push({...v, relation:'completed', stage:st.name}); break; }
+      }
+      const nxt = AC_WORKFLOW_STAGES.find(st => st.id === cur.id + 1);
+      if (nxt && nxt.dept === s.dept && cur.dept !== s.dept) next.push({...v, relation:'next', stage:nxt.name});
+    });
+    return {...s, active, done, next, total: active.length + done.length + next.length};
+  });
+  filteredStaff = [...staffData];
+}
+
+// ── POPULATE FILTER DROPDOWNS ─────────────────────────────────────
+function populateFilters() {
+  const depts  = [...new Set(AC_STAFF.map(s => s.dept))].sort();
+  const stages = [...new Set(AC_WORKFLOW_STAGES.map(s => s.name))];
+  const dSel = document.getElementById('fDept');
+  const sSel = document.getElementById('fStage');
+  depts.forEach(d  => { const o=document.createElement('option'); o.value=d; o.textContent=d; dSel.appendChild(o); });
+  stages.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; sSel.appendChild(o); });
+}
+
+// ── APPLY ALL FILTERS ─────────────────────────────────────────────
+function applyFilters() {
+  const q        = (document.getElementById('globalSearch')?.value || '').toLowerCase();
+  const qStaff   = (document.getElementById('staffSearch')?.value   || '').toLowerCase();
+  const fDept    = document.getElementById('fDept')?.value     || '';
+  const fStage   = document.getElementById('fStage')?.value    || '';
+  const fRelation= document.getElementById('fRelation')?.value || '';
+
+  const search = q || qStaff;
+
+  filteredStaff = staffData.filter(s => {
+    // Dept filter
+    if (fDept && s.dept !== fDept) return false;
+    // Name search
+    if (search && !s.name.toLowerCase().includes(search) && !s.role.toLowerCase().includes(search) && !s.dept.toLowerCase().includes(search)) {
+      // Also check if any of their vehicles match
+      const all = [...s.active, ...s.done, ...s.next];
+      const vehicleMatch = all.some(v =>
+        v.registration.toLowerCase().includes(search) ||
+        v.make.toLowerCase().includes(search) ||
+        v.model.toLowerCase().includes(search) ||
+        v.stockNo.toLowerCase().includes(search)
+      );
+      if (!vehicleMatch) return false;
+    }
+    // Stage filter — does this staff member have vehicles at this stage?
+    if (fStage) {
+      const all = [...s.active, ...s.done, ...s.next];
+      if (!all.some(v => v.stage === fStage)) return false;
+    }
+    // Relation filter
+    if (fRelation) {
+      if (fRelation === 'current'   && s.active.length === 0) return false;
+      if (fRelation === 'completed' && s.done.length   === 0) return false;
+      if (fRelation === 'next'      && s.next.length   === 0) return false;
+    }
+    return true;
+  });
+
+  // If selected staff is now hidden, clear selection
+  if (selectedStaff && !filteredStaff.find(s => s.name === selectedStaff.name)) {
+    selectedStaff = null;
+    document.getElementById('detailArea').innerHTML = `
+      <div class="placeholder-card">
+        <i class="fas fa-filter"></i>
+        <h3>Staff member filtered out</h3>
+        <p>The previously selected person doesn't match the current filters. Select another team member.</p>
+      </div>`;
+  }
+
+  buildKPIs();
+  buildBarChart();
+  renderStaffList();
+}
+
+function clearFilters() {
+  document.getElementById('globalSearch').value = '';
+  document.getElementById('staffSearch').value  = '';
+  document.getElementById('fDept').value        = '';
+  document.getElementById('fStage').value       = '';
+  document.getElementById('fRelation').value    = '';
+  applyFilters();
+}
+
+// ── KPIs (based on filteredStaff) ─────────────────────────────────
+function buildKPIs() {
+  const activeCount = filteredStaff.filter(s => s.active.length > 0).length;
+  const totalDone   = filteredStaff.reduce((a,s) => a + s.done.length, 0);
+  const totalNext   = filteredStaff.reduce((a,s) => a + s.next.length, 0);
+  const deptCounts  = {};
+  vehicles.forEach(v => {
+    const st = AC_WORKFLOW_STAGES.find(s => s.name === v.workflowStage);
+    if (st) deptCounts[st.dept] = (deptCounts[st.dept]||0) + 1;
+  });
+  const busiest = Object.entries(deptCounts).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('k-staff').textContent   = filteredStaff.length;
+  document.getElementById('k-active').textContent  = activeCount;
+  document.getElementById('k-done').textContent    = totalDone;
+  document.getElementById('k-pending').textContent = totalNext;
+  document.getElementById('k-dept').textContent    = busiest ? busiest[0] : '—';
+}
+
+// ── BAR CHART ─────────────────────────────────────────────────────
+function buildBarChart() {
+  const sorted   = filteredStaff.slice().sort(function(a,b) { return b.total - a.total; }).slice(0, 15);
+  const maxTotal = sorted[0] ? sorted[0].total : 1;
+  var html = '';
+  for (var i = 0; i < sorted.length; i++) {
+    var s   = sorted[i];
+    var aw  = (s.active.length / maxTotal * 100).toFixed(1);
+    var dw  = (s.done.length   / maxTotal * 100).toFixed(1);
+    var nw  = (s.next.length   / maxTotal * 100).toFixed(1);
+    var dc  = deptColor(s.dept);
+    var sel = selectedStaff && selectedStaff.name === s.name;
+    var segs = '';
+    if (s.active.length) segs += '<div class="bar-seg" style="width:' + aw + '%;background:var(--blue)"></div>';
+    if (s.done.length)   segs += '<div class="bar-seg" style="width:' + dw + '%;background:var(--green)"></div>';
+    if (s.next.length)   segs += '<div class="bar-seg" style="width:' + nw + '%;background:var(--gold)"></div>';
+    if (!segs)           segs  = '<div style="width:100%;background:var(--bg4);border-radius:6px;height:100%"></div>';
+    html += '<div class="bar-row' + (sel ? ' selected' : '') + '" onclick="selectStaff(\'' + s.name.replace("'", "\\'") + '\')">';
+    html += '<div style="display:flex;align-items:center;gap:7px">';
+    html += '<div style="width:22px;height:22px;border-radius:50%;background:' + dc + '18;color:' + dc + ';display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;flex-shrink:0">' + initials(s.name) + '</div>';
+    html += '<span class="bar-name">' + s.name.split(' ')[0] + '</span>';
+    html += '</div>';
+    html += '<div class="bar-track">' + segs + '</div>';
+    html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;min-width:60px">';
+    html += '<span class="bar-total">' + s.total + ' total</span>';
+    html += '<span style="font-size:9px;color:' + dc + ';font-weight:700">' + s.dept + '</span>';
+    html += '</div></div>';
+  }
+  document.getElementById('barChart').innerHTML = html || '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">No staff match the current filters</div>';
+}
+
+// ── STAFF LIST ────────────────────────────────────────────────────
+function renderStaffList() {
+  document.getElementById('staffCount').textContent = filteredStaff.length + ' shown';
+  var html = '';
+  for (var i = 0; i < filteredStaff.length; i++) {
+    var s   = filteredStaff[i];
+    var dc  = deptColor(s.dept);
+    var sel = selectedStaff && selectedStaff.name === s.name;
+    html += '<div class="staff-row' + (sel ? ' selected' : '') + '" onclick="selectStaff(\'' + s.name.replace("'", "\\'") + '\')">';
+    html += '<div class="sr-avatar" style="background:' + dc + '18;color:' + dc + '">' + initials(s.name) + '</div>';
+    html += '<div class="sr-info"><div class="sr-name">' + s.name + '</div>';
+    html += '<div class="sr-role">' + s.role + ' &middot; <span style="color:' + dc + ';font-weight:700">' + s.dept + '</span></div></div>';
+    html += '<div class="sr-count-badges">';
+    if (s.active.length) html += '<span class="sr-badge active"><i class="fas fa-bolt" style="font-size:8px"></i> ' + s.active.length + '</span>';
+    if (s.done.length)   html += '<span class="sr-badge done"><i class="fas fa-check" style="font-size:8px"></i> ' + s.done.length + '</span>';
+    if (s.next.length)   html += '<span class="sr-badge next"><i class="fas fa-arrow-right" style="font-size:8px"></i> ' + s.next.length + '</span>';
+    if (!s.active.length && !s.done.length && !s.next.length) html += '<span class="sr-badge" style="background:var(--bg3);color:var(--muted)">&mdash;</span>';
+    html += '</div></div>';
+  }
+  document.getElementById('staffList').innerHTML = html || '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">No staff match filters</div>';
+}
+
+// ── SELECT STAFF ──────────────────────────────────────────────────
+window.selectStaff = function(name) {
+  selectedStaff = staffData.find(s => s.name === name);
+  activeFilter  = 'all';
+  renderStaffList();
+  buildBarChart();
+  renderDetail();
+};
+
+// ── RENDER DETAIL ─────────────────────────────────────────────────
+function renderDetail() {
+  if (!selectedStaff) return;
+  const s  = selectedStaff;
+  const dc = deptColor(s.dept);
+
+  const fStage    = document.getElementById('fStage')    ? document.getElementById('fStage').value    : '';
+  const fRelation = document.getElementById('fRelation') ? document.getElementById('fRelation').value : '';
+  const qEl       = document.getElementById('globalSearch') || document.getElementById('staffSearch');
+  const q         = qEl ? qEl.value.toLowerCase() : '';
+
+  function filterVehicles(list) {
+    return list.filter(function(v) {
+      if (fStage && v.stage !== fStage) return false;
+      if (q && v.registration.toLowerCase().indexOf(q) === -1 &&
+               v.make.toLowerCase().indexOf(q) === -1 &&
+               v.model.toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+
+  const allVehicles  = s.active.concat(s.done).concat(s.next);
+  const rel          = fRelation || activeFilter || 'all';
+  const displayed    = rel === 'current'   ? filterVehicles(s.active) :
+                       rel === 'completed' ? filterVehicles(s.done)   :
+                       rel === 'next'      ? filterVehicles(s.next)   :
+                       filterVehicles(allVehicles);
+
+  const activeCount  = filterVehicles(s.active).length;
+  const doneCount    = filterVehicles(s.done).length;
+  const nextCount    = filterVehicles(s.next).length;
+  const allCount     = filterVehicles(allVehicles).length;
+
+  // Build table rows as a separate string to avoid nested template literals
+  var tableHTML = '';
+  if (displayed.length === 0) {
+    tableHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No vehicles match for ' + s.name.split(' ')[0] + '</p></div>';
+  } else {
+    var rows = '';
+    for (var i = 0; i < displayed.length; i++) {
+      var v       = displayed[i];
+      var sc      = STAGE_COLORS[v.stage] || '#888';
+      var rlabel  = v.relation === 'current' ? 'Working On' : v.relation === 'completed' ? 'Completed' : 'Up Next';
+      var rcls    = v.relation === 'current' ? 'rel-current' : v.relation === 'completed' ? 'rel-completed' : 'rel-next';
+      var dcls    = v.daysInStock > 60 ? 'days-crit' : v.daysInStock > 30 ? 'days-warn' : 'days-ok';
+      var price   = fmt(v.price);
+      rows += '<tr>';
+      rows += '<td><span class="reg-pill">' + v.registration + '</span></td>';
+      rows += '<td><div style="font-weight:700;font-size:12px">' + v.make + ' ' + v.model + '</div><div style="font-size:10px;color:var(--muted)">' + v.stockNo + '</div></td>';
+      rows += '<td><span class="stage-pill" style="background:' + sc + '18;color:' + sc + '">' + v.stage + '</span></td>';
+      rows += '<td><span class="rel-tag ' + rcls + '">' + rlabel + '</span></td>';
+      rows += '<td><span class="days-badge ' + dcls + '">' + v.daysInStock + 'd</span></td>';
+      rows += '<td style="font-size:11px;color:var(--text2)">' + (v.location || '—') + '</td>';
+      rows += '<td style="font-weight:700;font-size:12px">' + price + '</td>';
+      rows += '<td style="font-size:10px;color:var(--muted)">' + (v.status || '—') + '</td>';
+      rows += '</tr>';
+    }
+    tableHTML = '<div style="overflow-x:auto"><table class="ac-table"><thead><tr><th>Reg</th><th>Make / Model</th><th>Stage</th><th>Activity</th><th>Days In Stock</th><th>Location</th><th>Price</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  // Build tab classes separately — avoids mixed quotes inside template literals
+  var tabAll  = (rel === 'all')       ? 'ftab active'      : 'ftab';
+  var tabCur  = (rel === 'current')   ? 'ftab active'      : 'ftab';
+  var tabDone = (rel === 'completed') ? 'ftab done active done' : 'ftab done';
+  var tabNext = (rel === 'next')      ? 'ftab next active next' : 'ftab next';
+
+  document.getElementById('detailArea').innerHTML =
+    '<div class="detail-panel">' +
+      '<div class="detail-hdr">' +
+        '<div class="detail-staff-info">' +
+          '<div class="detail-avatar" style="background:' + dc + '18;color:' + dc + ';font-size:15px;font-weight:800">' + initials(s.name) + '</div>' +
+          '<div>' +
+            '<div class="detail-name">' + s.name + '</div>' +
+            '<div class="detail-role">' + s.role + ' &middot; <span style="color:' + dc + ';font-weight:700">' + s.dept + '</span> Department</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="detail-stats">' +
+          '<div class="d-stat"><div class="d-stat-v" style="color:var(--blue)">' + s.active.length + '</div><div class="d-stat-l">Active</div></div>' +
+          '<div class="d-stat"><div class="d-stat-v" style="color:var(--green)">' + s.done.length + '</div><div class="d-stat-l">Done</div></div>' +
+          '<div class="d-stat"><div class="d-stat-v" style="color:var(--gold)">' + s.next.length + '</div><div class="d-stat-l">Next</div></div>' +
+          '<div class="d-stat"><div class="d-stat-v">' + s.total + '</div><div class="d-stat-l">Total</div></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="filter-tabs">' +
+        '<div class="' + tabAll  + '" onclick="setSubFilter(\'all\')">All (' + allCount + ')</div>' +
+        '<div class="' + tabCur  + '" onclick="setSubFilter(\'current\')">&#128309; Active (' + activeCount + ')</div>' +
+        '<div class="' + tabDone + '" onclick="setSubFilter(\'completed\')">&#9989; Done (' + doneCount + ')</div>' +
+        '<div class="' + tabNext + '" onclick="setSubFilter(\'next\')">&#9197; Next (' + nextCount + ')</div>' +
+      '</div>' +
+      tableHTML +
+    '</div>';
+}
+
+window.setSubFilter = function(f) {
+  activeFilter = f;
+  renderDetail();
+};
+
+// ── INIT ──────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  buildStaffWorkload();
+  populateFilters();
+  buildKPIs();
+  buildBarChart();
+  renderStaffList();
+  document.getElementById('userBadge').textContent = 'AUTO CAPITAL';
+  try { const li = localStorage.getItem('lastImportTime'); if (li) document.getElementById('lastImportTime').textContent = li; } catch(e){}
+});
+
+function doLogout(){ window.location.href = './login.html'; }
+</script>
+
+// Last import badge
+(function(){
+  try {
+    var ts = Math.max(
+      parseInt(localStorage.getItem('ce_last_import_stock')||'0'),
+      parseInt(localStorage.getItem('ce_last_import_etrack')||'0')
+    );
+    var el = document.getElementById('lastImportBadge');
+    if (!el) return;
+    if (!ts) { el.textContent = 'No import yet'; return; }
+    var d = new Date(ts);
+    var ago = Math.floor((Date.now()-ts)/3600000);
+    var label = ago < 1 ? 'Imported < 1hr ago' : ago < 24 ? 'Imported '+ago+'hr ago' : 'Imported '+Math.floor(ago/24)+'d ago';
+    el.textContent = label;
+    el.className = 'nav-import ' + (ago < 24 ? 'fresh' : 'stale');
+  } catch(e) {}
+})();
+
+</body>
+</html>
+
+let selectedStaff = null;
+let activeFilter  = 'all';
+let vehicles      = [];
+let staffData     = [];
+
+// ── BUILD STAFF WORKLOAD from vehicle workflow stages ──────────────
+function buildStaffWorkload() {
+  vehicles = getVehicles();
+
+  // Map department → staff members in that dept
+  const deptToStaff = {};
+  AC_STAFF.forEach(s => {
+    if (!deptToStaff[s.dept]) deptToStaff[s.dept] = [];
+    deptToStaff[s.dept].push(s.name);
+  });
+
+  // For each staff, find:
+  // - vehicles currently at their dept's stage (active)
+  // - vehicles that completed a stage owned by their dept (done)
+  // - vehicles whose next stage belongs to their dept (next)
+  staffData = AC_STAFF.map(s => {
+    const active = [], done = [], next = [];
+
+    vehicles.forEach(v => {
+      const curStage = AC_WORKFLOW_STAGES.find(st => st.name === v.workflowStage);
+      if (!curStage) return;
+
+      // Active: current stage department matches staff department
+      if (curStage.dept === s.dept) {
+        active.push({ ...v, relation: 'current', stage: curStage.name });
+      }
+
+      // Done: any completed stage before current that belongs to staff dept
+      const curIdx = curStage.id - 1;
+      for (let i = 0; i < curIdx; i++) {
+        const st = AC_WORKFLOW_STAGES[i];
+        if (st && st.dept === s.dept) {
+          done.push({ ...v, relation: 'completed', stage: st.name });
+          break; // one entry per vehicle per staff member
+        }
+      }
+
+      // Next: next stage belongs to staff dept
+      const nextStage = AC_WORKFLOW_STAGES.find(st => st.id === curStage.id + 1);
+      if (nextStage && nextStage.dept === s.dept && curStage.dept !== s.dept) {
+        next.push({ ...v, relation: 'next', stage: nextStage.name });
+      }
+    });
+
+    return { ...s, active, done, next, total: active.length + done.length + next.length };
+  }).filter(s => s.total > 0 || true); // show all staff
+
+  return staffData;
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────
+function buildKPIs() {
+  const activeCount = staffData.filter(s => s.active.length > 0).length;
+  const totalDone   = staffData.reduce((a, s) => a + s.done.length, 0);
+  const totalNext   = staffData.reduce((a, s) => a + s.next.length, 0);
+
+  // Busiest dept
+  const deptCounts = {};
+  vehicles.forEach(v => {
+    const s = AC_WORKFLOW_STAGES.find(st => st.name === v.workflowStage);
+    if (s) deptCounts[s.dept] = (deptCounts[s.dept] || 0) + 1;
+  });
+  const busiest = Object.entries(deptCounts).sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('k-staff').textContent   = staffData.length;
+  document.getElementById('k-active').textContent  = activeCount;
+  document.getElementById('k-done').textContent    = totalDone;
+  document.getElementById('k-pending').textContent = totalNext;
+  document.getElementById('k-dept').textContent    = busiest ? busiest[0] : '—';
+}
+
+// ── BAR CHART ────────────────────────────────────────────────────
+function buildBarChart() {
+  const sorted = [...staffData].sort((a,b) => b.total - a.total).slice(0, 15);
+  const maxTotal = sorted[0]?.total || 1;
+  const col = document.getElementById('barChart');
+  col.innerHTML = sorted.map(s => {
+    const aw = (s.active.length / maxTotal * 100).toFixed(1);
+    const dw = (s.done.length   / maxTotal * 100).toFixed(1);
+    const nw = (s.next.length   / maxTotal * 100).toFixed(1);
+    const dc = deptColor(s.dept);
+    const isSelected = selectedStaff && selectedStaff.name === s.name;
+    const segs = [
+      s.active.length ? `<div class="bar-seg${!s.done.length && !s.next.length?' only':''}" style="width:${aw}%;background:var(--blue)"></div>` : '',
+      s.done.length   ? `<div class="bar-seg${!s.next.length?' only':''}" style="width:${dw}%;background:var(--green)"></div>` : '',
+      s.next.length   ? `<div class="bar-seg only" style="width:${nw}%;background:var(--gold)"></div>` : '',
+    ].join('');
+    return `<div class="bar-row${isSelected?' selected':''}" onclick="selectStaff('${s.name}')">
+      <div style="display:flex;align-items:center;gap:7px">
+        <div style="width:22px;height:22px;border-radius:50%;background:${dc}18;color:${dc};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;flex-shrink:0">${initials(s.name)}</div>
+        <span class="bar-name">${s.name.split(' ')[0]}</span>
+      </div>
+      <div class="bar-track">${segs || '<div style="width:100%;background:var(--bg4);border-radius:6px"></div>'}</div>
+      <span class="bar-total">${s.total}</span>
+    </div>`;
+  }).join('') || '<div style="text-align:center;padding:24px;color:var(--muted)">No data</div>';
+}
+
+// ── STAFF LIST ────────────────────────────────────────────────────
+function renderStaffList() {
+  const q = (document.getElementById('staffSearch')?.value || document.getElementById('globalSearch')?.value || '').toLowerCase();
+  const list = staffData.filter(s =>
+    s.name.toLowerCase().includes(q) ||
+    s.dept.toLowerCase().includes(q) ||
+    s.role.toLowerCase().includes(q)
+  );
+  document.getElementById('staffCount').textContent = list.length + ' members';
+  const dc_map = DEPT_COLORS;
+  document.getElementById('staffList').innerHTML = list.map(s => {
+    const dc = deptColor(s.dept);
+    const isSelected = selectedStaff && selectedStaff.name === s.name;
+    return `<div class="staff-row${isSelected?' selected':''}" onclick="selectStaff('${s.name}')">
+      <div class="sr-avatar" style="background:${dc}18;color:${dc}">${initials(s.name)}</div>
+      <div class="sr-info">
+        <div class="sr-name">${s.name}</div>
+        <div class="sr-role">${s.role} · ${s.dept}</div>
+      </div>
+      <div class="sr-count-badges">
+        ${s.active.length ? `<span class="sr-badge active"><i class="fas fa-bolt" style="font-size:8px"></i> ${s.active.length} active</span>` : ''}
+        ${s.done.length   ? `<span class="sr-badge done"><i class="fas fa-check" style="font-size:8px"></i> ${s.done.length} done</span>` : ''}
+        ${s.next.length   ? `<span class="sr-badge next"><i class="fas fa-arrow-right" style="font-size:8px"></i> ${s.next.length} next</span>` : ''}
+        ${(!s.active.length && !s.done.length && !s.next.length) ? `<span class="sr-badge" style="background:var(--bg3);color:var(--muted)">0 vehicles</span>` : ''}
+      </div>
+    </div>`;
+  }).join('') || '<div style="text-align:center;padding:24px;color:var(--muted)">No staff found</div>';
+}
+
+// ── SELECT STAFF ──────────────────────────────────────────────────
+window.selectStaff = function(name) {
+  selectedStaff = staffData.find(s => s.name === name);
+  activeFilter = 'all';
+  renderStaffList();
+  buildBarChart();
+  renderDetail();
+};
+
+function renderDetail() {
+  if (!selectedStaff) return;
+  const s = selectedStaff;
+  const dc = deptColor(s.dept);
+
+  const all     = [...s.active, ...s.done, ...s.next];
+  const filtered = activeFilter === 'all'    ? all :
+                   activeFilter === 'active' ? s.active :
+                   activeFilter === 'done'   ? s.done   : s.next;
+
+  document.getElementById('detailArea').innerHTML = `
+    <div class="detail-panel">
+      <div class="detail-hdr">
+        <div class="detail-staff-info">
+          <div class="detail-avatar" style="background:${dc}18;color:${dc};font-size:15px;font-weight:800">${initials(s.name)}</div>
+          <div>
+            <div class="detail-name">${s.name}</div>
+            <div class="detail-role">${s.role} · ${s.dept} Department</div>
+          </div>
+        </div>
+        <div class="detail-stats">
+          <div class="d-stat"><div class="d-stat-v" style="color:var(--blue)">${s.active.length}</div><div class="d-stat-l">Active</div></div>
+          <div class="d-stat"><div class="d-stat-v" style="color:var(--green)">${s.done.length}</div><div class="d-stat-l">Completed</div></div>
+          <div class="d-stat"><div class="d-stat-v" style="color:var(--gold)">${s.next.length}</div><div class="d-stat-l">Next</div></div>
+          <div class="d-stat"><div class="d-stat-v">${s.total}</div><div class="d-stat-l">Total</div></div>
+        </div>
+      </div>
+
+      <div class="filter-tabs">
+        <div class="ftab${activeFilter==='all'?' active':''}" onclick="setFilter('all')">All Vehicles (${all.length})</div>
+        <div class="ftab${activeFilter==='active'?' active':''}" onclick="setFilter('active')">🔵 Currently Working On (${s.active.length})</div>
+        <div class="ftab done${activeFilter==='done'?' active done':''}" onclick="setFilter('done')">✅ Completed Stages (${s.done.length})</div>
+        <div class="ftab next${activeFilter==='next'?' active next':''}" onclick="setFilter('next')">⏭ Next To Receive (${s.next.length})</div>
+      </div>
+
+      ${filtered.length === 0
+        ? `<div class="empty-state"><i class="fas fa-inbox"></i><p>No vehicles in this category for ${s.name}</p></div>`
+        : `<div style="overflow-x:auto">
+          <table class="ac-table">
+            <thead><tr>
+              <th>Registration</th>
+              <th>Make / Model</th>
+              <th>Stage</th>
+              <th>Relation</th>
+              <th>Days In Stock</th>
+              <th>Location</th>
+              <th>Price</th>
+              <th>Status</th>
+            </tr></thead>
+            <tbody>${filtered.map(v => {
+              const sc = STAGE_COLORS[v.stage] || '#888';
+              const relLabel = v.relation === 'current' ? 'Currently Working On' : v.relation === 'completed' ? 'Stage Completed' : 'Next To Receive';
+              const relCls   = v.relation === 'current' ? 'rel-current' : v.relation === 'completed' ? 'rel-completed' : 'rel-next';
+              const daysCls  = v.daysInStock > 60 ? 'days-crit' : v.daysInStock > 30 ? 'days-warn' : 'days-ok';
+              const price    = v.price ? '£' + Number(v.price).toLocaleString('en-GB') : '—';
+              return `<tr>
+                <td><span class="reg-pill">${v.registration}</span></td>
+                <td>
+                  <div style="font-weight:700;font-size:12px">${v.make} ${v.model}</div>
+                  <div style="font-size:10px;color:var(--muted)">${v.stockNo}</div>
+                </td>
+                <td><span class="stage-pill" style="background:${sc}18;color:${sc}">${v.stage}</span></td>
+                <td><span class="rel-tag ${relCls}">${relLabel}</span></td>
+                <td><span class="days-badge ${daysCls}">${v.daysInStock}d</span></td>
+                <td style="font-size:11px;color:var(--text2)">${v.location || '—'}</td>
+                <td style="font-weight:700;font-size:12px">${price}</td>
+                <td style="font-size:10px;color:var(--muted)">${v.status || '—'}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+          </div>`
+      }
+    </div>`;
+}
+
+window.setFilter = function(f) {
+  activeFilter = f;
+  renderDetail();
+};
+
+// ── INIT ──────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  buildStaffWorkload();
+  buildKPIs();
+  buildBarChart();
+  renderStaffList();
+  document.getElementById('userBadge').textContent = 'AUTO CAPITAL';
+});
+
+function doLogout(){ window.location.href = './login.html'; }
+</script>
+<script>
+// Last import badge
+(function(){
+  try {
+    var ts = Math.max(
+      parseInt(localStorage.getItem('ce_last_import_stock')||'0'),
+      parseInt(localStorage.getItem('ce_last_import_etrack')||'0')
+    );
+    var el = document.getElementById('lastImportBadge');
+    if (!el) return;
+    if (!ts) { el.textContent = 'No import yet'; return; }
+    var d = new Date(ts);
+    var ago = Math.floor((Date.now()-ts)/3600000);
+    var label = ago < 1 ? 'Imported < 1hr ago' : ago < 24 ? 'Imported '+ago+'hr ago' : 'Imported '+Math.floor(ago/24)+'d ago';
+    el.textContent = label;
+    el.className = 'nav-import ' + (ago < 24 ? 'fresh' : 'stale');
+  } catch(e) {}
+})();
+</script>
+</body>
+</html>

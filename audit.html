@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Trail | Auto Capital</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="./firebase-config.js"></script>
+<script src="./ac-data.js"></script>
+<style>
+/* ── STANDARD LAYOUT — optimised for 19-24 inch screens ── */
+.shell,.main{
+  margin-top:54px;
+  height:calc(100vh - 54px);
+  overflow-y:auto;
+  padding:24px 28px;
+  max-width:1600px;
+  margin-left:auto;
+  margin-right:auto;
+  box-sizing:border-box;
+}
+@media(min-width:1800px){.shell,.main{max-width:1800px;padding:28px 40px}}
+@media(max-width:1200px){.shell,.main{padding:16px 20px}}
+
+.nav{position:fixed;top:0;left:0;right:0;height:54px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;z-index:100;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.nav-brand{display:flex;align-items:center;gap:8px;text-decoration:none;flex-shrink:0}
+.nav-mark{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:2px;text-transform:uppercase}
+.nav-div{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.nav-links{display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-link{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600;color:var(--ink3);text-decoration:none;white-space:nowrap;transition:all .15s}
+.nav-link:hover{background:var(--bg);color:var(--ink)}
+.nav-link.active{background:var(--red);color:#fff}
+.nav-link i{font-size:11px}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.nav-bell{position:relative;cursor:pointer;padding:6px 8px;border-radius:6px;color:var(--ink3);font-size:14px;transition:all .15s;flex-shrink:0}
+.nav-bell:hover{background:#f0f2f6;color:var(--text)}
+.bell-badge{position:absolute;top:2px;right:2px;background:#C8102E;color:#fff;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-family:"IBM Plex Mono",monospace}
+.notif-overlay{display:none;position:fixed;inset:0;z-index:200}
+.notif-overlay.open{display:block}
+.notif-panel{position:fixed;top:52px;right:12px;width:340px;max-height:500px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.15);z-index:201;display:flex;flex-direction:column;transform:translateY(-8px);opacity:0;pointer-events:none;transition:all .2s}
+.notif-panel.open{transform:translateY(0);opacity:1;pointer-events:all}
+.notif-hdr{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.notif-title{font-size:13px;font-weight:800;color:var(--text);flex:1}
+.notif-list{overflow-y:auto;flex:1}
+.notif-item{padding:12px 16px;border-bottom:1px solid #f0f2f6;cursor:pointer;transition:background .15s}
+.notif-item:hover{background:#f8f9fc}
+.notif-item.unread{background:#f0f4ff}
+.notif-item.unread:hover{background:#e8eeff}
+.notif-item-hdr{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.notif-reg{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;background:#f5c518;color:#000;padding:1px 6px;border-radius:3px}
+.notif-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:3px}
+.notif-type.handover{background:#dbeafe;color:#1d4ed8}
+.notif-type.urgent{background:#fee2e2;color:#991b1b}
+.notif-type.skip{background:#fef9c3;color:#854d0e}
+.notif-type.sendback{background:#f3e8ff;color:#6b21a8}
+.notif-.notif-meta{font-size:10px;color:var(--ink3);margin-top:3px}
+.notif-empty{padding:32px;text-align:center;color:var(--ink3);font-size:13px}
+.notif-empty i{display:block;font-size:24px;margin-bottom:8px;opacity:.3}
+:root{--bg:#f4f6f9;--bg2:#fff;--bg3:#f0f2f6;--bg4:#eef0f5;--border:#e2e6ed;--border2:#c8d0dc;--red:#C8102E;--red2:#a00d24;--red-light:rgba(200,16,46,.07);--blue:#003DA5;--blue2:#002d7a;--blue-light:rgba(0,61,165,.07);--gold:#d4980a;--green:#1a7f37;--green-light:rgba(26,127,55,.07);--orange:#d4600a;--text:#0f1923;--text2:#3d4d5c;--muted:#7a8fa6;--shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.04);--shadow-md:0 4px 12px rgba(0,0,0,.1),0 12px 40px rgba(0,0,0,.07);--card-radius:12px}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;font-size:13px;padding-top:54px}
+
+*{margin:0;padding:0;box-sizing:border-box}
+
+/* ═══ 2-ROW HEADER ═══ */
+
+.logo-divider{width:1px;height:28px;background:var(--border);flex-shrink:0}
+
+.header-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+.btn-logout:hover{color:var(--red);border-color:var(--red)}
+
+
+.page-hdr{margin-bottom:20px;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.page-hdr h1{/* font-size normalised by global CSS */font-weight:800}.r{color:var(--red)}
+.page-hdr p{color:var(--muted);font-size:13px;margin-top:3px}
+
+/* STATS STRIP */
+.stats-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
+.stat-box{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 16px;border-top:3px solid var(--sc,var(--blue));box-shadow:var(--shadow)}
+.stat-val{font-size:28px;font-weight:800;color:var(--sc,var(--blue));line-height:1}
+.stat-lbl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-top:3px}
+
+/* FILTERS */
+.filter-bar{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:var(--shadow)}
+.fi{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:7px 12px;color:var(--text);font-size:12px;font-family:'IBM Plex Sans',sans-serif;outline:none;cursor:pointer}
+.fi:focus{border-color:var(--blue)}
+.fi-search{flex:1;min-width:180px;padding:7px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:'IBM Plex Sans',sans-serif;outline:none;color:var(--text)}
+.fi-search:focus{border-color:var(--blue)}
+.fi-search::placeholder{color:var(--muted)}
+.btn{padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:'IBM Plex Sans',sans-serif;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-ghost{background:var(--bg3);border:1px solid var(--border);color:var(--muted)}.btn-ghost:hover{color:var(--text)}
+.btn-danger{background:var(--red-light);color:var(--red);border:1px solid rgba(200,16,46,.2)}.btn-danger:hover{background:rgba(200,16,46,.15)}
+
+/* TIMELINE */
+.timeline{position:relative}
+.tl-date-group{margin-bottom:8px}
+.tl-date-label{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);padding:8px 0 6px;display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.tl-date-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.tl-row{display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:#fff;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;transition:all .15s;cursor:pointer}
+.tl-row:hover{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-light)}
+.tl-row.type-handover{border-left:3px solid var(--green)}
+.tl-row.type-draft{border-left:3px solid var(--blue)}
+.tl-row.type-import{border-left:3px solid var(--gold)}
+.tl-row.type-alert{border-left:3px solid var(--red)}
+.tl-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:1px}
+.tl-.tl-title{font-size:13px;font-weight:700;line-height:1.3}
+.tl-desc{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}
+.tl-tags{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+.tl-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;letter-spacing:.3px}
+.tl-right{text-align:right;flex-shrink:0;min-width:80px}
+.tl-time{font-size:11px;font-weight:600;color:var(--text2)}
+.tl-date-sm{font-size:10px;color:var(--muted);margin-top:2px}
+.rp{font-family:'IBM Plex Mono',monospace;font-size:10px;background:#fff9db;color:#7a5c00;padding:2px 6px;border-radius:4px;border:1px solid #e6d080;letter-spacing:1px}
+.empty{text-align:center;padding:48px;color:var(--muted);font-size:14px}
+.empty i{font-size:32px;display:block;margin-bottom:12px;opacity:.2}
+.pager{display:flex;align-items:center;gap:8px;margin-top:14px;justify-content:center}
+.pager-btn{padding:6px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--muted);font-family:'IBM Plex Sans',sans-serif}
+.pager-btn:hover:not(:disabled){border-color:var(--blue);color:var(--blue)}
+.pager-btn:disabled{opacity:.4;cursor:default}
+--navy:#003DA5;--purple:#7c3aed;--ink2:#3d4d5c;--ink3:#7a8fa6;
+
+/* ── NAV ── */
+
+
+
+
+
+
+
+
+
+
+
+
+.nav-tools{display:flex;align-items:center;gap:3px}
+.nav-tool{font-size:10px;font-weight:700;color:#003DA5;text-decoration:none;padding:3px 7px;border-radius:5px;border:1px solid rgba(0,61,165,.2);background:rgba(0,61,165,.05);white-space:nowrap;transition:all .15s}
+.nav-tool:hover{background:#003DA5;color:#fff}
+.nav-user{font-size:11px;font-weight:700;color:#fff;background:#003DA5;padding:4px 10px;border-radius:6px}
+.nav-import{font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;background:#f0f2f6;color:#7a8fa6;white-space:nowrap}
+.nav-import.fresh{background:#d1fae5;color:#065f46}
+.nav-import.stale{background:#fef3c7;color:#92400e}
+
+
+/* ── NOTIFICATION BELL ── */
+
+
+
+/* ── NOTIFICATION PANEL ── */
+.notif-overlay{display:none;position:fixed;inset:0;z-index:200}
+.notif-overlay.open{display:block}
+.notif-panel{position:fixed;top:52px;right:12px;width:340px;max-height:500px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.15);z-index:201;display:flex;flex-direction:column;transform:translateY(-8px);opacity:0;pointer-events:none;transition:all .2s}
+.notif-panel.open{transform:translateY(0);opacity:1;pointer-events:all}
+.notif-hdr{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.notif-title{font-size:13px;font-weight:800;color:var(--text);flex:1}
+.notif-list{overflow-y:auto;flex:1}
+.notif-item{padding:12px 16px;border-bottom:1px solid #f0f2f6;cursor:pointer;transition:background .15s}
+.notif-item:hover{background:#f8f9fc}
+.notif-item.unread{background:#f0f4ff}
+.notif-item.unread:hover{background:#e8eeff}
+.notif-item-hdr{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.notif-reg{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;background:#f5c518;color:#000;padding:1px 6px;border-radius:3px}
+.notif-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:3px}
+.notif-type.handover{background:#dbeafe;color:#1d4ed8}
+.notif-type.urgent{background:#fee2e2;color:#991b1b}
+.notif-type.skip{background:#fef9c3;color:#854d0e}
+.notif-type.sendback{background:#f3e8ff;color:#6b21a8}
+.notif-.notif-meta{font-size:10px;color:var(--ink3);margin-top:3px}
+.notif-empty{padding:32px;text-align:center;color:var(--ink3);font-size:13px}
+.notif-empty i{display:block;font-size:24px;margin-bottom:8px;opacity:.3}
+
+
+/* ═══════════════════════════════════════════════════════════
+   CAPEYE — GLOBAL TYPOGRAPHY & SPACING SYSTEM
+   All pages must use these values. Do not override.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Page title — the big heading at top of each page */
+.page-title, h1.page-title, h1 {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: #111827 !important;
+  letter-spacing: -0.3px !important;
+  line-height: 1.2 !important;
+  margin-bottom: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+/* Red accent word in titles (e.g. "Key Dashboard", "Stock Analytics") */
+h1 .r, h1 span.r, .page-title .r { color: #C8102E !important; font-weight: 800 !important; }
+
+/* Page subtitle */
+.page-sub, h1 + p, h1 + div.page-sub {
+  font-size: 12px !important;
+  color: #6B7280 !important;
+  font-weight: 400 !important;
+  margin-top: 2px !important;
+  margin-bottom: 0 !important;
+}
+
+/* Section headings inside cards */
+h2, .section-title, .card-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+}
+
+/* Card header labels (ALL CAPS small) */
+.card-h, .card-hdr, [class*="card-h"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  color: #6B7280 !important;
+}
+
+/* Body text */
+body {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: #374151 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Table headers */
+th, .ac-table th, thead th {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+}
+
+/* Table body cells */
+td, .ac-table td {
+  font-size: 12px !important;
+  color: #374151 !important;
+}
+
+/* KPI values */
+.kpi-v, .kpi-value, [class*="kpi-v"] {
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+}
+
+/* KPI labels */
+.kpi-l, .kpi-label, [class*="kpi-l"] {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+  margin-top: 4px !important;
+}
+
+/* Buttons — consistent sizing */
+.btn, button[class*="btn"], .tb-btn {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Badges / tags */
+.badge, [class*="-badge"], [class*="-tag"] {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+/* Form labels */
+.form-label, label[class*="form-label"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+}
+
+/* Form inputs */
+input, select, textarea {
+  font-size: 13px !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Nav links — keep compact */
+.nav-link {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+}
+
+/* Registration plates — always mono */
+[class*="reg"], [class*="-plate"] {
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-weight: 700 !important;
+}
+
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="index.html"><img src="auto-capital-logo.png" alt="AC" onerror="this.style.display='none'"><span class="nav-mark" style="margin-left:4px">CE</span></a>
+  <div class="nav-div"></div>
+  <div class="nav-links">
+    <a class="nav-link" href="index.html"><i class="fas fa-gauge-high"></i> Dashboard</a>
+    <a class="nav-link" href="workflow.html"><i class="fas fa-arrows-rotate"></i> Workflow</a>
+    <a class="nav-link" href="inventory.html"><i class="fas fa-car"></i> Inventory</a>
+    <a class="nav-link" href="alerts.html"><i class="fas fa-bell"></i> Alerts</a>
+    <a class="nav-link" href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a>
+    <a class="nav-link" href="keys.html"><i class="fas fa-key"></i> Keys</a>
+    <a class="nav-link" href="auction.html"><i class="fas fa-gavel"></i> Auction</a>
+    <a class="nav-link" href="accessories.html"><i class="fas fa-wrench"></i> Accessories</a>
+    <a class="nav-link" href="aftersales.html"><i class="fas fa-headset"></i> Aftersales</a>
+    <a class="nav-link" href="staff-jobs.html"><i class="fas fa-clipboard-list"></i> Staff Jobs</a>
+    <a class="nav-link" href="import.html"><i class="fas fa-file-import"></i> Import</a>
+    <a class="nav-link" href="audit.html" class="nav-link active"><i class="fas fa-list-check"></i> Audit</a>
+    <a class="nav-link" href="team.html"><i class="fas fa-users"></i> Team</a>
+    <a class="nav-link" href="admin.html"><i class="fas fa-cog"></i> Admin</a>
+  </div>
+  <div class="nav-bell" id="navBell" onclick="openNotifPanel()" title="Notifications">
+    <i class="fas fa-bell"></i>
+    <span class="bell-badge" id="bellBadge" style="display:none">0</span>
+  </div>
+  <div class="nav-right">
+    <div class="nav-tools">
+      <a class="nav-tool" href="https://trade.hpi.co.uk/trade/preLogin.do" target="_blank">HPI</a>
+      <a class="nav-tool" href="https://www.autocapital.co.uk/" target="_blank">Website</a>
+      <a class="nav-tool" href="https://www.autocapital.co.uk/finance.php" target="_blank">Finance</a>
+    </div>
+    <span class="nav-import" id="lastImportBadge">—</span>
+    <button onclick="if(confirm('Sign out of CapEye?'))doLogout()" style="padding:5px 12px;background:rgba(200,16,46,.08);border:1px solid rgba(200,16,46,.2);border-radius:6px;color:#C8102E;font-size:11px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
+    <span class="nav-user" id="nav-user">Keith Hardy</span>
+  </div>
+</nav>
+
+<div class="shell">
+  <div class="page-hdr">
+    <div>
+      <h1>Audit <span class="r">Trail</span></h1>
+      <p id="auditSub">Complete activity log — every handover, stage completion, import and alert</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="buildAudit()"><i class="fas fa-sync-alt"></i> Refresh</button>
+      <button class="btn btn-ghost" onclick="exportCSV()"><i class="fas fa-download"></i> Export CSV</button>
+      <button class="btn btn-danger" onclick="clearLog()" title="Clear all audit entries"><i class="fas fa-trash-alt"></i> Clear Log</button>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-strip">
+    <div class="stat-box" style="--sc:var(--blue)"><div class="stat-val" id="st-total">0</div><div class="stat-lbl">Total Events</div></div>
+    <div class="stat-box" style="--sc:var(--green)"><div class="stat-val" id="st-handovers">0</div><div class="stat-lbl">Handovers</div></div>
+    <div class="stat-box" style="--sc:var(--gold)"><div class="stat-val" id="st-imports">0</div><div class="stat-lbl">Data Imports</div></div>
+    <div class="stat-box" style="--sc:var(--orange)"><div class="stat-val" id="st-drafts">0</div><div class="stat-lbl">Drafts Saved</div></div>
+    <div class="stat-box" style="--sc:var(--red)"><div class="stat-val" id="st-people">0</div><div class="stat-lbl">People Active</div></div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filter-bar">
+    <input class="fi-search" id="auditSearch" placeholder="🔍 Search reg, staff name, stage, note..." oninput="applyFilters()">
+    <select class="fi" id="filterType" onchange="applyFilters()">
+      <option value="">All Types</option>
+      <option value="handover">Handovers</option>
+      <option value="draft">Drafts Saved</option>
+      <option value="import">Data Imports</option>
+      <option value="alert">Alerts</option>
+    </select>
+    <select class="fi" id="filterDept" onchange="applyFilters()">
+      <option value="">All Departments</option>
+      <option>Intake</option>
+      <option>Workshop</option>
+      <option>Bodyshop</option>
+      <option>Valeting</option>
+      <option>Marketing</option>
+      <option>Sales</option>
+      <option>Finance</option>
+      <option>Management</option>
+    </select>
+    <select class="fi" id="filterStaff" onchange="applyFilters()">
+      <option value="">All Staff</option>
+    </select>
+    <select class="fi" id="filterPri" onchange="applyFilters()">
+      <option value="">All Priorities</option>
+      <option value="critical">🔴 Critical</option>
+      <option value="urgent">🟡 Urgent</option>
+      <option value="normal">🟢 Normal</option>
+    </select>
+    <select class="fi" id="filterDays" onchange="applyFilters()">
+      <option value="7">Last 7 days</option>
+      <option value="30" selected>Last 30 days</option>
+      <option value="90">Last 90 days</option>
+      <option value="0">All time</option>
+    </select>
+    <button class="btn btn-ghost" onclick="clearFilters()"><i class="fas fa-times"></i> Clear</button>
+  </div>
+
+  <!-- TIMELINE -->
+  <div id="auditTimeline"></div>
+
+  <!-- PAGER -->
+  <div class="pager" id="pager" style="display:none">
+    <button class="pager-btn" id="prevBtn" onclick="changePage(-1)">← Prev</button>
+    <span id="pagerInfo" style="font-size:12px;color:var(--muted)"></span>
+    <button class="pager-btn" id="nextBtn" onclick="changePage(1)">Next →</button>
+  </div>
+</div>
+
+<script src="firebase-init.js?v=20250720"></script>
+<script>
+// ── SESSION CHECK ────────────────────────────────────────────
+(function() {
+  var ts = parseInt(localStorage.getItem('ce_auth_ts') || '0');
+  var TTL = 12 * 60 * 60 * 1000; // 12 hours
+  if (!ts || (Date.now() - ts) > TTL) {
+    // Clear session and redirect to login
+    ['ce_user_id','ce_user_name','ce_user_dept','ce_user_email',
+     'ce_user_admin','ce_user_price','ce_user_mgr','ce_auth_ts'].forEach(function(k){
+      localStorage.removeItem(k);
+    });
+    window.location.replace('login.html');
+  }
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="notifications.js?v=20250720"></script>
+<script>
+const DEPT_C = {Intake:'#6366f1',Workshop:'#7c3aed',Bodyshop:'#f97316',Valeting:'#10b981',Marketing:'#3b82f6',Sales:'#22c55e',Finance:'#a855f7',Management:'#64748b'};
+const TYPE_CFG = {
+  handover: {icon:'fa-exchange-alt', bg:'rgba(26,127,55,.12)', col:'#1a7f37', label:'Handover'},
+  draft:    {icon:'fa-save',          bg:'rgba(0,61,165,.1)',   col:'#003DA5', label:'Draft Saved'},
+  import:   {icon:'fa-file-upload',   bg:'rgba(212,152,10,.12)',col:'#d4980a', label:'Import'},
+  alert:    {icon:'fa-bell',          bg:'rgba(200,16,46,.08)', col:'#C8102E', label:'Alert'},
+};
+
+let allEvents = [];
+let filtered  = [];
+let page = 0;
+const PAGE = 50;
+
+/* ── COLLECT ALL EVENTS ── */
+function collectEvents() {
+  const events = [];
+
+  // 1. Handovers — scan all ac_ho_* keys
+  Object.keys(localStorage).filter(k=>k.startsWith('ac_ho_')).forEach(k => {
+    try {
+      const ho = JSON.parse(localStorage.getItem(k));
+      if (!ho || !ho.ts) return;
+      // key format: ac_ho_STOCKNO_STAGEID
+      const parts = k.replace('ac_ho_','').split('_');
+      const stageId = parseInt(parts[parts.length-1]);
+      const stockNo = parts.slice(0,-1).join('_');
+      const stage = AC_WORKFLOW_STAGES.find(s=>s.id===stageId)||{name:'Stage '+stageId,dept:'Unknown'};
+      const v = getVehicles().find(x=>x.stockNo===stockNo)||{registration:stockNo,make:'',model:''};
+      events.push({
+        type:'handover', ts:ho.ts,
+        title:`Stage ${stageId}: ${stage.name} completed → ${ho.toName}`,
+        desc:`${v.registration||stockNo} ${v.make} ${v.model} · Note: ${ho.note||'No note'}`,
+        staff: ho.toName||'Unknown',
+        dept: stage.dept,
+        reg: v.registration||stockNo,
+        stockNo, stageId,
+        priority: ho.priority||'normal',
+        fromStage: ho.fromStage||stage.name,
+        note: ho.note||'',
+      });
+    } catch(e){}
+  });
+
+  // 2. Tasks — per staff member
+  Object.keys(localStorage).filter(k=>k.startsWith('ac_tasks_')).forEach(k => {
+    try {
+      const tasks = JSON.parse(localStorage.getItem(k)||'[]');
+      tasks.forEach(t => {
+        if (!t.assignedAt) return;
+        const stage = AC_WORKFLOW_STAGES.find(s=>s.id===t.stageId)||{dept:'Unknown'};
+        events.push({
+          type:'draft', ts:t.assignedAt,
+          title:`Task assigned: ${t.stageName||'Stage'} → ${k.replace('ac_tasks_','').replace(/_/g,' ')}`,
+          desc:`${t.vehicle?.registration||t.stockNo||'—'} ${t.vehicle?.make||''} ${t.vehicle?.model||''} · ${t.note||'No note'}`,
+          staff: k.replace('ac_tasks_','').replace(/_/g,' '),
+          dept: stage.dept,
+          reg: t.vehicle?.registration||t.stockNo||'',
+          stockNo: t.stockNo,
+          priority: t.priority||'normal',
+          note: t.note||'',
+        });
+      });
+    } catch(e){}
+  });
+
+  // 2b. General audit log (skip, sendback, urgent, handovers from workflow)
+  try {
+    var auditLog = JSON.parse(localStorage.getItem('ac_audit_log') || '[]');
+    auditLog.forEach(function(e) {
+      // Avoid duplicating handovers already in ac_ho_
+      if (e.type === 'handover') return;
+      events.push({
+        type: e.type === 'skip' ? 'skip' : e.type === 'sendback' ? 'sendback' : e.type === 'urgent' ? 'urgent' : 'other',
+        ts: e.ts,
+        title: e.title || '',
+        desc: e.desc || '',
+        staff: e.staff || 'Unknown',
+        dept: 'Management',
+        reg: e.reg || '',
+        priority: e.priority || 'normal',
+        note: '',
+      });
+    });
+  } catch(e2) {}
+
+  // 3. Stock imports
+  try {
+    const hist = JSON.parse(localStorage.getItem('ac_import_stock_history')||'[]');
+    hist.forEach(h => {
+      events.push({
+        type:'import', ts: new Date(h.ts).toISOString(),
+        title:`ClickDealer stock import — ${h.total} vehicles`,
+        desc:`${h.newCount} new · ${h.updateCount} updated · File: ${h.filename||'CSV'}`,
+        staff:'System', dept:'Ready for Sale', reg:'', priority:'normal',
+      });
+    });
+  } catch(e){}
+
+  // 4. eTrack imports
+  try {
+    const hist = JSON.parse(localStorage.getItem('ac_import_etrack_history')||'[]');
+    hist.forEach(h => {
+      events.push({
+        type:'import', ts: new Date(h.ts).toISOString(),
+        title:`eTrack keys import — ${h.total} records`,
+        desc:`${h.out} keys out · File: ${h.filename||'CSV'}`,
+        staff:'System', dept:'Ready for Sale', reg:'', priority:'normal',
+      });
+    });
+  } catch(e){}
+
+  // 5. System alerts feed
+  try {
+    const alerts = getAlerts().filter(a=>a.type||a.level);
+    alerts.forEach(a => {
+      events.push({
+        type:'alert', ts:a.ts||new Date().toISOString(),
+        title:a.title||'System alert',
+        desc:a.body||'',
+        staff:'System', dept:'Ready for Sale',
+        reg:a.stockNo||'', priority:a.level==='critical'?'critical':a.level==='warning'?'urgent':'normal',
+      });
+    });
+  } catch(e){}
+
+  // Sort newest first
+  events.sort((a,b) => new Date(b.ts)-new Date(a.ts));
+  return events;
+}
+
+function applyFilters() {
+  const q    = (document.getElementById('auditSearch').value||'').toLowerCase();
+  const type = document.getElementById('filterType').value;
+  const dept = document.getElementById('filterDept').value;
+  const staff= document.getElementById('filterStaff').value;
+  const pri  = document.getElementById('filterPri').value;
+  const days = parseInt(document.getElementById('filterDays').value)||0;
+  const cutoff = days>0 ? Date.now()-days*86400000 : 0;
+
+  filtered = allEvents.filter(e => {
+    if(type && e.type!==type) return false;
+    if(dept && e.dept!==dept) return false;
+    if(staff && e.staff!==staff) return false;
+    if(pri && e.priority!==pri) return false;
+    if(cutoff && new Date(e.ts).getTime()<cutoff) return false;
+    if(q && ![e.title,e.desc,e.staff,e.reg,e.dept].some(f=>(f||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  page=0;
+  render();
+}
+
+function render() {
+  const start = page*PAGE;
+  const pageEvts = filtered.slice(start, start+PAGE);
+
+  if (!filtered.length) {
+    document.getElementById('auditTimeline').innerHTML = '<div class="empty"><i class="fas fa-clipboard-list"></i>No activity found matching your filters</div>';
+    document.getElementById('pager').style.display='none';
+    return;
+  }
+
+  // Group by date
+  const groups = {};
+  pageEvts.forEach(e => {
+    const d = new Date(e.ts).toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+    if(!groups[d]) groups[d]=[];
+    groups[d].push(e);
+  });
+
+  const priCol={normal:'var(--green)',urgent:'var(--gold)',critical:'var(--red)'};
+  const priIcon={normal:'🟢',urgent:'🟡',critical:'🔴'};
+
+  document.getElementById('auditTimeline').innerHTML = Object.entries(groups).map(([date,evts])=>`
+    <div class="tl-date-group">
+      <div class="tl-date-label">${date}</div>
+      ${evts.map(e=>{
+        const cfg = TYPE_CFG[e.type]||TYPE_CFG.draft;
+        const dc = DEPT_C[e.dept]||'var(--blue)';
+        const t = new Date(e.ts);
+        const timeStr = t.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        return `<div class="tl-row type-${e.type}" onclick="${e.stockNo?`window.location='./workflow.html?stock=${e.stockNo}'`:'void(0)'}">
+          <div class="tl-icon" style="background:${cfg.bg};color:${cfg.col}"><i class="fas ${cfg.icon}"></i></div>
+          <div class="tl-body">
+            <div class="tl-title">${e.reg?`<span class="rp">${e.reg}</span> `:''}${e.title}</div>
+            <div class="tl-desc">${e.desc}</div>
+            <div class="tl-tags">
+              <span class="tl-tag" style="background:${cfg.bg};color:${cfg.col}">${cfg.label}</span>
+              ${e.dept&&e.dept!=='Ready for Sale'||e.type!=='import'?`<span class="tl-tag" style="background:${dc}18;color:${dc}">${e.dept}</span>`:''}
+              ${e.staff&&e.staff!=='System'?`<span class="tl-tag" style="background:var(--bg3);color:var(--text2)"><i class="fas fa-user" style="font-size:9px;margin-right:3px"></i>${e.staff}</span>`:''}
+              ${e.priority&&e.priority!=='normal'?`<span class="tl-tag" style="background:${priCol[e.priority]}18;color:${priCol[e.priority]}">${priIcon[e.priority]} ${e.priority.toUpperCase()}</span>`:''}
+              ${e.note?`<span class="tl-tag" style="background:var(--bg3);color:var(--muted);font-style:italic;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"${e.note.slice(0,50)}${e.note.length>50?'…':''}"</span>`:''}
+            </div>
+          </div>
+          <div class="tl-right">
+            <div class="tl-time">${timeStr}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+
+  // Pager
+  const totalPages = Math.ceil(filtered.length/PAGE);
+  document.getElementById('pager').style.display = totalPages>1?'flex':'none';
+  document.getElementById('pagerInfo').textContent = `Page ${page+1} of ${totalPages} · ${filtered.length} events`;
+  document.getElementById('prevBtn').disabled = page===0;
+  document.getElementById('nextBtn').disabled = page>=totalPages-1;
+}
+
+function changePage(dir){ page+=dir; render(); window.scrollTo({top:200,behavior:'smooth'}); }
+
+function clearFilters(){
+  document.getElementById('auditSearch').value='';
+  document.getElementById('filterType').value='';
+  document.getElementById('filterDept').value='';
+  document.getElementById('filterStaff').value='';
+  document.getElementById('filterPri').value='';
+  document.getElementById('filterDays').value='30';
+  applyFilters();
+}
+
+function buildAudit(){
+  allEvents = collectEvents();
+  
+  // Stats
+  const handovers = allEvents.filter(e=>e.type==='handover');
+  const imports   = allEvents.filter(e=>e.type==='import');
+  const drafts    = allEvents.filter(e=>e.type==='draft');
+  const people    = new Set(allEvents.filter(e=>e.staff&&e.staff!=='System').map(e=>e.staff)).size;
+  document.getElementById('st-total').textContent     = allEvents.length;
+  document.getElementById('st-handovers').textContent = handovers.length;
+  document.getElementById('st-imports').textContent   = imports.length;
+  document.getElementById('st-drafts').textContent    = drafts.length;
+  document.getElementById('st-people').textContent    = people;
+
+  // Populate staff dropdown
+  const staffSet = [...new Set(allEvents.filter(e=>e.staff&&e.staff!=='System').map(e=>e.staff))].sort();
+  const sel = document.getElementById('filterStaff');
+  sel.innerHTML = '<option value="">All Staff</option>' + staffSet.map(s=>`<option value="${s}">${s}</option>`).join('');
+
+  // Page subtitle
+  document.getElementById('auditSub').textContent = `${allEvents.length} events · ${handovers.length} handovers · ${people} people active`;
+
+  applyFilters();
+}
+
+function exportCSV(){
+  const rows = [['Time','Type','Reg','Staff','Department','Stage/Title','Description','Priority']];
+  filtered.forEach(e=>{
+    rows.push([
+      new Date(e.ts).toLocaleString('en-GB'),
+      e.type, e.reg||'', e.staff||'',
+      e.dept||'', e.title, e.desc||'', e.priority||'normal'
+    ]);
+  });
+  const csv = rows.map(r=>r.map(c=>'"'+(c||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'audit_trail_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+function clearLog(){
+  if(!confirm('Clear all audit log entries? This cannot be undone.\n\nNOTE: This only clears the audit log. Vehicle and workflow data is not affected.')) return;
+  Object.keys(localStorage).filter(k=>k.startsWith('ac_ho_')||k.startsWith('ac_tasks_')||k==='ac_alerts').forEach(k=>localStorage.removeItem(k));
+  buildAudit();
+}
+
+buildAudit();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded',function(){var b=document.getElementById('userBadge');if(b)b.textContent='AUTO CAPITAL';});
+function doLogout(){window.location.href='./login.html';}
+</script>
+<script>
+(function(){try{var cd=localStorage.getItem('ac_import_clickdealer_ts');var et=localStorage.getItem('ac_import_etrack_ts');var ts=[cd,et].filter(Boolean).map(Number).sort(function(a,b){return b-a;})[0];var badge=document.getElementById('lastImportBadge');var span=document.getElementById('lastImportTime');if(!ts||!badge||!span)return;var age=(Date.now()-ts)/3600000;var d=new Date(ts);var label=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});span.textContent=label;badge.className='last-import '+(age<24?'fresh':age>48?'stale':'');}catch(e){}})();
+</script>
+<script>
+// Last import badge
+(function(){
+  try {
+    var ts = Math.max(
+      parseInt(localStorage.getItem('ce_last_import_stock')||'0'),
+      parseInt(localStorage.getItem('ce_last_import_etrack')||'0')
+    );
+    var el = document.getElementById('lastImportBadge');
+    if (!el) return;
+    if (!ts) { el.textContent = 'No import yet'; return; }
+    var d = new Date(ts);
+    var ago = Math.floor((Date.now()-ts)/3600000);
+    var label = ago < 1 ? 'Imported < 1hr ago' : ago < 24 ? 'Imported '+ago+'hr ago' : 'Imported '+Math.floor(ago/24)+'d ago';
+    el.textContent = label;
+    el.className = 'nav-import ' + (ago < 24 ? 'fresh' : 'stale');
+  } catch(e) {}
+})();
+</script>
+
+<!-- NOTIFICATION PANEL -->
+<div class="notif-overlay" id="notifOverlay" onclick="closeNotifPanel()"></div>
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-hdr">
+    <span class="notif-title"><i class="fas fa-bell"></i> Notifications</span>
+    <button onclick="markAllRead();renderNotifPanel()" style="background:none;border:none;font-size:11px;color:var(--ink3);cursor:pointer;font-family:inherit;font-weight:600">Mark all read</button>
+    <button onclick="closeNotifPanel()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--ink3);padding:2px 6px">&times;</button>
+  </div>
+  <div class="notif-list" id="notifList"></div>
+</div>
+<script>
+// ── NAV BELL ──────────────────────────────────────────────────────
+function updateBell() {
+  var count = getUnreadCount();
+  var badge = document.getElementById('bellBadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = count > 9 ? '9+' : count;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function openNotifPanel() {
+  document.getElementById('notifPanel').classList.add('open');
+  document.getElementById('notifOverlay').classList.add('open');
+  renderNotifPanel();
+  markAllRead();
+  setTimeout(updateBell, 300);
+}
+
+function closeNotifPanel() {
+  document.getElementById('notifPanel').classList.remove('open');
+  document.getElementById('notifOverlay').classList.remove('open');
+}
+
+function renderNotifPanel() {
+  var notifs = getMyNotifications();
+  var list = document.getElementById('notifList');
+  if (!notifs.length) {
+    list.innerHTML = '<div class="notif-empty"><i class="fas fa-bell-slash"></i>No notifications yet</div>';
+    return;
+  }
+  list.innerHTML = notifs.slice(0, 30).map(function(n) {
+    var ago = timeAgo(n.ts);
+    var typeLabel = { handover:'Handover', urgent:'Urgent', skip:'Skipped', sendback:'Sent Back', fault:'Fault' }[n.type] || n.type;
+    return '<div class="notif-item' + (n.read ? '' : ' unread') + '" onclick="window.location.href=\'' + (n.link||'workflow.html') + '\'">' +
+      '<div class="notif-item-hdr">' +
+      '<span class="notif-reg">' + n.reg + '</span>' +
+      '<span class="notif-type ' + n.type + '">' + typeLabel + '</span>' +
+      '</div>' +
+      '<div class="notif-body">' + n.vehicle + ' — ' + n.stage + (n.fromName ? ' · from ' + n.fromName : '') + '</div>' +
+      (n.note ? '<div class="notif-meta">"' + n.note.slice(0,60) + (n.note.length>60?'…':'') + '"</div>' : '') +
+      '<div class="notif-meta">' + ago + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function timeAgo(ts) {
+  var diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'hr ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+// Poll for new notifications every 60s
+setInterval(updateBell, 60000);
+document.addEventListener('DOMContentLoaded', function() {
+  // Subscribe to Firestore audit log for real-time updates
+  if (typeof subscribeAuditLog === 'function') {
+    subscribeAuditLog(function(fsEntries) {
+      // Merge Firestore entries into localStorage cache
+      if (fsEntries && fsEntries.length) {
+        try {
+          var existing = JSON.parse(localStorage.getItem('ac_audit_log')||'[]');
+          // Add FS entries that aren't already cached
+          var merged = fsEntries.concat(existing.filter(function(e) {
+            return !fsEntries.find(function(f){ return f.ts === e.ts && f.reg === e.reg; });
+          }));
+          merged.sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+          localStorage.setItem('ac_audit_log', JSON.stringify(merged.slice(0,500)));
+        } catch(e2){}
+      }
+      if (typeof collectEvents === 'function') collectEvents();
+    }, 500);
+  } setTimeout(updateBell, 1000); });
+</script>
+</body>
+</html>

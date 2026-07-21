@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Staff Jobs | CapEye</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js?v=20250720"></script>
+<script src="ac-data.js?v=20250720"></script>
+<script src="firebase-init.js?v=20250720"></script>
+<script>
+// ── SESSION CHECK ────────────────────────────────────────────
+(function() {
+  var ts = parseInt(localStorage.getItem('ce_auth_ts') || '0');
+  var TTL = 12 * 60 * 60 * 1000; // 12 hours
+  if (!ts || (Date.now() - ts) > TTL) {
+    // Clear session and redirect to login
+    ['ce_user_id','ce_user_name','ce_user_dept','ce_user_email',
+     'ce_user_admin','ce_user_price','ce_user_mgr','ce_auth_ts'].forEach(function(k){
+      localStorage.removeItem(k);
+    });
+    window.location.replace('login.html');
+  }
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="notifications.js?v=20250720"></script>
+<style>
+/* ── STANDARD LAYOUT — optimised for 19-24 inch screens ── */
+.shell,.main{
+  margin-top:54px;
+  height:calc(100vh - 54px);
+  overflow-y:auto;
+  padding:24px 28px;
+  max-width:1600px;
+  margin-left:auto;
+  margin-right:auto;
+  box-sizing:border-box;
+}
+@media(min-width:1800px){.shell,.main{max-width:1800px;padding:28px 40px}}
+@media(max-width:1200px){.shell,.main{padding:16px 20px}}
+
+.nav{position:fixed;top:0;left:0;right:0;height:54px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;z-index:100;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.nav-brand{display:flex;align-items:center;gap:8px;text-decoration:none;flex-shrink:0}
+.nav-mark{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:2px;text-transform:uppercase}
+.nav-div{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.nav-links{display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-link{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600;color:var(--ink3);text-decoration:none;white-space:nowrap;transition:all .15s}
+.nav-link:hover{background:var(--bg);color:var(--ink)}
+.nav-link.active{background:var(--red);color:#fff}
+.nav-link i{font-size:11px}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.nav-bell{position:relative;cursor:pointer;padding:6px 8px;border-radius:6px;color:var(--ink3);font-size:14px;transition:all .15s;flex-shrink:0}
+.nav-bell:hover{background:#f0f2f6;color:var(--text)}
+.bell-badge{position:absolute;top:2px;right:2px;background:#C8102E;color:#fff;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-family:"IBM Plex Mono",monospace}
+.notif-overlay{display:none;position:fixed;inset:0;z-index:200}
+.notif-overlay.open{display:block}
+.notif-panel{position:fixed;top:52px;right:12px;width:340px;max-height:500px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.15);z-index:201;display:flex;flex-direction:column;transform:translateY(-8px);opacity:0;pointer-events:none;transition:all .2s}
+.notif-panel.open{transform:translateY(0);opacity:1;pointer-events:all}
+.notif-hdr{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.notif-title{font-size:13px;font-weight:800;color:var(--text);flex:1}
+.notif-list{overflow-y:auto;flex:1}
+.notif-item{padding:12px 16px;border-bottom:1px solid #f0f2f6;cursor:pointer;transition:background .15s}
+.notif-item:hover{background:#f8f9fc}
+.notif-item.unread{background:#f0f4ff}
+.notif-item.unread:hover{background:#e8eeff}
+.notif-item-hdr{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.notif-reg{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;background:#f5c518;color:#000;padding:1px 6px;border-radius:3px}
+.notif-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:3px}
+.notif-type.handover{background:#dbeafe;color:#1d4ed8}
+.notif-type.urgent{background:#fee2e2;color:#991b1b}
+.notif-type.skip{background:#fef9c3;color:#854d0e}
+.notif-type.sendback{background:#f3e8ff;color:#6b21a8}
+.notif-.notif-meta{font-size:10px;color:var(--ink3);margin-top:3px}
+.notif-empty{padding:32px;text-align:center;color:var(--ink3);font-size:13px}
+.notif-empty i{display:block;font-size:24px;margin-bottom:8px;opacity:.3}
+:root{--bg:#f4f6f9;--bg2:#fff;--bg3:#f0f2f6;--border:#e2e6ed;--red:#C8102E;--blue:#003DA5;--navy:#003DA5;--gold:#d4980a;--green:#1a7f37;--orange:#d4600a;--purple:#7c3aed;--text:#0f1923;--ink2:#3d4d5c;--ink3:#7a8fa6;--muted:#7a8fa6}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;font-size:13px;padding-top:54px}
+
+*{margin:0;padding:0;box-sizing:border-box}
+
+/* NAV */
+
+
+
+
+
+
+
+
+
+
+
+
+.nav-tools{display:flex;align-items:center;gap:3px}
+.nav-tool{font-size:10px;font-weight:700;color:#003DA5;text-decoration:none;padding:3px 7px;border-radius:5px;border:1px solid rgba(0,61,165,.2);background:rgba(0,61,165,.05);white-space:nowrap;transition:all .15s}
+.nav-tool:hover{background:#003DA5;color:#fff}
+.nav-user{font-size:11px;font-weight:700;color:#fff;background:#003DA5;padding:4px 10px;border-radius:6px}
+.nav-import{font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;background:#f0f2f6;color:#7a8fa6;white-space:nowrap}
+
+/* LAYOUT */
+.shell{max-width:1400px;margin:0 auto;padding:24px 20px}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:16px;flex-wrap:wrap}
+.page-title{/* font-size normalised by global CSS */font-weight:800;color:#0f1923;letter-spacing:-.4px;display:flex;align-items:center;gap:10px}
+
+/* KPI STRIP */
+.kpi-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.kpi-card{background:#fff;border-radius:10px;border:1px solid var(--border);padding:14px 18px;flex:1;min-width:120px;border-top:3px solid var(--blue)}
+.kpi-val{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:700}
+.kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);margin-top:3px}
+
+/* FILTER BAR */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.filter-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.ftab{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--ink3);transition:all .15s;white-space:nowrap}
+.ftab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.ftab.overdue.active{background:#ef4444;border-color:#ef4444}
+.ftab.done.active{background:var(--green);border-color:var(--green)}
+.search-box{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;width:220px}
+.search-box:focus{outline:none;border-color:var(--blue)}
+.sel-filter{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;color:var(--ink2);background:#fff}
+.sel-filter:focus{outline:none;border-color:var(--blue)}
+
+/* JOB GRID */
+.job-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+
+/* JOB CARD */
+.job-card{background:#fff;border-radius:12px;border:1px solid var(--border);padding:0;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05);transition:box-shadow .15s}
+.job-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.job-card.overdue{border-left:4px solid #ef4444}
+.job-card.high-priority{border-left:4px solid #ef4444}
+.job-card.medium-priority{border-left:4px solid var(--gold)}
+.job-card.low-priority{border-left:4px solid #94a3b8}
+.job-card.done-card{opacity:.75}
+.jc-top{padding:14px 16px 10px;border-bottom:1px solid var(--bg3)}
+.jc-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.3}
+.jc-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.priority-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.priority-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.status-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.sb-todo{background:#e0e7ff;color:#3730a3}
+.sb-progress{background:#fef3c7;color:#92400e}
+.sb-done{background:#d1fae5;color:#065f46}
+.sb-overdue{background:#fee2e2;color:#991b1b}
+.jc-notes{padding:10px 16px;font-size:12px;color:var(--ink2);line-height:1.5;border-bottom:1px solid var(--bg3)}
+.jc-info{padding:8px 16px;display:flex;align-items:center;gap:12px;font-size:11px;color:var(--ink3);flex-wrap:wrap}
+.jc-info span{display:flex;align-items:center;gap:4px}
+.deadline-warn{color:#ef4444;font-weight:600}
+.deadline-near{color:var(--gold);font-weight:600}
+.jc-actions{padding:10px 16px;display:flex;gap:6px}
+.jc-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--ink2);transition:all .15s;text-align:center}
+.jc-btn:hover{background:var(--bg3)}
+.jc-btn.progress{background:var(--gold);color:#fff;border-color:var(--gold)}
+.jc-btn.complete{background:var(--green);color:#fff;border-color:var(--green)}
+.jc-btn.reopen{background:var(--ink3);color:#fff;border-color:var(--ink3)}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:14px;width:90%;max-width:520px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:1}
+.modal-title{font-size:15px;font-weight:800;color:var(--text)}
+.modal-close{background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink3);padding:4px}
+.modal-.modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+.form-label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:5px}
+.form-input{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;color:var(--text);background:#fff;transition:border-color .15s}
+.form-input:focus{outline:none;border-color:var(--blue)}
+.form-textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;color:var(--text);background:#fff;min-height:90px;resize:vertical}
+.form-textarea:focus{outline:none;border-color:var(--blue)}
+.form-row{margin-bottom:14px}
+.btn{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:#a00d24}
+.btn-ghost{background:#fff;color:var(--ink2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg3)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--ink3)}
+.empty-state i{font-size:36px;opacity:.2;display:block;margin-bottom:12px}
+.ce-toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;color:#fff;border-radius:10px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 24px rgba(0,0,0,.25);max-width:340px;line-height:1.4}
+
+/* ── NOTIFICATION BELL ── */
+
+
+
+/* ── NOTIFICATION PANEL ── */
+.notif-overlay{display:none;position:fixed;inset:0;z-index:200}
+.notif-overlay.open{display:block}
+.notif-panel{position:fixed;top:52px;right:12px;width:340px;max-height:500px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.15);z-index:201;display:flex;flex-direction:column;transform:translateY(-8px);opacity:0;pointer-events:none;transition:all .2s}
+.notif-panel.open{transform:translateY(0);opacity:1;pointer-events:all}
+.notif-hdr{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.notif-title{font-size:13px;font-weight:800;color:var(--text);flex:1}
+.notif-list{overflow-y:auto;flex:1}
+.notif-item{padding:12px 16px;border-bottom:1px solid #f0f2f6;cursor:pointer;transition:background .15s}
+.notif-item:hover{background:#f8f9fc}
+.notif-item.unread{background:#f0f4ff}
+.notif-item.unread:hover{background:#e8eeff}
+.notif-item-hdr{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.notif-reg{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;background:#f5c518;color:#000;padding:1px 6px;border-radius:3px}
+.notif-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:3px}
+.notif-type.handover{background:#dbeafe;color:#1d4ed8}
+.notif-type.urgent{background:#fee2e2;color:#991b1b}
+.notif-type.skip{background:#fef9c3;color:#854d0e}
+.notif-type.sendback{background:#f3e8ff;color:#6b21a8}
+.notif-.notif-meta{font-size:10px;color:var(--ink3);margin-top:3px}
+.notif-empty{padding:32px;text-align:center;color:var(--ink3);font-size:13px}
+.notif-empty i{display:block;font-size:24px;margin-bottom:8px;opacity:.3}
+
+
+/* ═══════════════════════════════════════════════════════════
+   CAPEYE — GLOBAL TYPOGRAPHY & SPACING SYSTEM
+   All pages must use these values. Do not override.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Page title — the big heading at top of each page */
+.page-title, h1.page-title, h1 {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: #111827 !important;
+  letter-spacing: -0.3px !important;
+  line-height: 1.2 !important;
+  margin-bottom: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+/* Red accent word in titles (e.g. "Key Dashboard", "Stock Analytics") */
+h1 .r, h1 span.r, .page-title .r { color: #C8102E !important; font-weight: 800 !important; }
+
+/* Page subtitle */
+.page-sub, h1 + p, h1 + div.page-sub {
+  font-size: 12px !important;
+  color: #6B7280 !important;
+  font-weight: 400 !important;
+  margin-top: 2px !important;
+  margin-bottom: 0 !important;
+}
+
+/* Section headings inside cards */
+h2, .section-title, .card-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+}
+
+/* Card header labels (ALL CAPS small) */
+.card-h, .card-hdr, [class*="card-h"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  color: #6B7280 !important;
+}
+
+/* Body text */
+body {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: #374151 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Table headers */
+th, .ac-table th, thead th {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+}
+
+/* Table body cells */
+td, .ac-table td {
+  font-size: 12px !important;
+  color: #374151 !important;
+}
+
+/* KPI values */
+.kpi-v, .kpi-value, [class*="kpi-v"] {
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+}
+
+/* KPI labels */
+.kpi-l, .kpi-label, [class*="kpi-l"] {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+  margin-top: 4px !important;
+}
+
+/* Buttons — consistent sizing */
+.btn, button[class*="btn"], .tb-btn {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Badges / tags */
+.badge, [class*="-badge"], [class*="-tag"] {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+/* Form labels */
+.form-label, label[class*="form-label"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+}
+
+/* Form inputs */
+input, select, textarea {
+  font-size: 13px !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Nav links — keep compact */
+.nav-link {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+}
+
+/* Registration plates — always mono */
+[class*="reg"], [class*="-plate"] {
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-weight: 700 !important;
+}
+
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="index.html"><img src="auto-capital-logo.png" alt="AC" onerror="this.style.display='none'"><span class="nav-mark" style="margin-left:4px">CE</span></a>
+  <div class="nav-div"></div>
+  <div class="nav-links">
+    <a class="nav-link" href="index.html"><i class="fas fa-gauge-high"></i> Dashboard</a>
+    <a class="nav-link" href="workflow.html"><i class="fas fa-arrows-rotate"></i> Workflow</a>
+    <a class="nav-link" href="inventory.html"><i class="fas fa-car"></i> Inventory</a>
+    <a class="nav-link" href="alerts.html"><i class="fas fa-bell"></i> Alerts</a>
+    <a class="nav-link" href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a>
+    <a class="nav-link" href="keys.html"><i class="fas fa-key"></i> Keys</a>
+    <a class="nav-link" href="auction.html"><i class="fas fa-gavel"></i> Auction</a>
+    <a class="nav-link" href="accessories.html"><i class="fas fa-wrench"></i> Accessories</a>
+    <a class="nav-link" href="aftersales.html"><i class="fas fa-headset"></i> Aftersales</a>
+    <a class="nav-link" href="staff-jobs.html" class="nav-link active"><i class="fas fa-clipboard-list"></i> Staff Jobs</a>
+    <a class="nav-link" href="import.html"><i class="fas fa-file-import"></i> Import</a>
+    <a class="nav-link" href="audit.html"><i class="fas fa-list-check"></i> Audit</a>
+    <a class="nav-link" href="team.html"><i class="fas fa-users"></i> Team</a>
+    <a class="nav-link" href="admin.html"><i class="fas fa-cog"></i> Admin</a>
+  </div>
+  <div class="nav-bell" id="navBell" onclick="openNotifPanel()" title="Notifications">
+    <i class="fas fa-bell"></i>
+    <span class="bell-badge" id="bellBadge" style="display:none">0</span>
+  </div>
+  <div class="nav-right">
+    <div class="nav-tools">
+      <a class="nav-tool" href="https://trade.hpi.co.uk/trade/preLogin.do" target="_blank">HPI</a>
+      <a class="nav-tool" href="https://www.autocapital.co.uk/" target="_blank">Website</a>
+      <a class="nav-tool" href="https://www.autocapital.co.uk/finance.php" target="_blank">Finance</a>
+    </div>
+    <span class="nav-import" id="lastImportBadge">—</span>
+    <button onclick="if(confirm('Sign out of CapEye?'))doLogout()" style="padding:5px 12px;background:rgba(200,16,46,.08);border:1px solid rgba(200,16,46,.2);border-radius:6px;color:#C8102E;font-size:11px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
+    <span class="nav-user" id="nav-user">Keith Hardy</span>
+  </div>
+</nav>
+
+<div class="shell">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title"><i class="fas fa-clipboard-list" style="color:var(--blue)"></i> Staff Jobs</div>
+      <div style="font-size:12px;color:var(--ink3);margin-top:3px">General tasks, office jobs and showroom work — assigned to any team member</div>
+    </div>
+    <button class="btn btn-red" onclick="openNewJob()"><i class="fas fa-plus"></i> New Job</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row" id="kpi-row"></div>
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <div class="filter-tabs" id="status-tabs"></div>
+    <input class="search-box" id="search-box" placeholder="🔍 Search jobs..." oninput="renderJobs()">
+    <select class="sel-filter" id="assign-filter" onchange="renderJobs()">
+      <option value="all">All Staff</option>
+    </select>
+    <select class="sel-filter" id="priority-filter" onchange="renderJobs()">
+      <option value="all">All Priorities</option>
+      <option value="High">High Priority</option>
+      <option value="Medium">Medium Priority</option>
+      <option value="Low">Low Priority</option>
+    </select>
+  </div>
+
+  <!-- JOB GRID -->
+  <div class="job-grid" id="job-grid"></div>
+</div>
+
+<!-- NEW JOB MODAL -->
+<div class="modal-bg" id="job-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-title">New Job</div>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">Job Title *</label>
+        <input type="text" class="form-input" id="j-title" placeholder="e.g. Clean showroom entrance, File V5 documents...">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Notes / Description</label>
+        <textarea class="form-textarea" id="j-notes" placeholder="Any extra details, instructions or context..."></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-row">
+          <label class="form-label">Assign To *</label>
+          <select class="form-input" id="j-assign"></select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Priority</label>
+          <select class="form-input" id="j-priority">
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-row">
+          <label class="form-label">Deadline (optional)</label>
+          <input type="datetime-local" class="form-input" id="j-deadline">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Remind Before</label>
+          <select class="form-input" id="j-reminder">
+            <option value="">No reminder</option>
+            <option value="30">30 minutes before</option>
+            <option value="60">1 hour before</option>
+            <option value="120">2 hours before</option>
+            <option value="1440">1 day before</option>
+            <option value="2880">2 days before</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Assigned By</label>
+        <select class="form-input" id="j-assignedby"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-red" onclick="saveJob()"><i class="fas fa-save"></i> <span id="save-btn-label">Create Job</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// ── DATA ─────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'ce_staff_jobs';
+let jobs = [];
+let activeFilter = 'all';
+let editingId = null;
+
+function loadJobs() {
+  try {
+    jobs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    // Also load from Firestore for cross-device sync
+    if (typeof FS !== 'undefined' && FS) {
+      FS.collection('staff_jobs').orderBy('createdAt','desc').get()
+        .then(function(snap) {
+          var fsJobs = [];
+          snap.forEach(function(doc) { fsJobs.push(Object.assign({_id:doc.id},doc.data())); });
+          if (fsJobs.length >= jobs.length) {
+            jobs = fsJobs;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
+            renderJobs();
+          }
+        }).catch(function(){});
+    }
+  } catch(e) { jobs = []; }
+  if (!jobs.length) seedDemoJobs();
+}
+
+function saveJobs() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
+  // Also sync latest job to Firestore
+  if (typeof FS !== 'undefined' && FS && jobs.length) {
+    // Sync all jobs to Firestore
+    jobs.forEach(function(job) {
+      var docId = job._id || 'job_'+job.id;
+      FS.collection('staff_jobs').doc(String(docId)).set(job).catch(function(){});
+    });
+  }
+}
+
+function seedDemoJobs() {
+  const now = Date.now();
+  const day = 86400000;
+  jobs = [
+    { id: 1, title: 'Tidy forecourt and arrange display vans', notes: 'Move the three vans at the back row to front row display positions. Check tyre pressures on all forecourt stock.', assignedTo: 'Gorgino Barnes', assignedBy: 'Keith Hardy', priority: 'High', status: 'To Do', created: now - day*2, deadline: new Date(Date.now() + 3*3600000).toISOString().slice(0,16), reminder: '60' },
+    { id: 2, title: 'File all V5 documents received this week', notes: 'Three V5s arrived Tuesday — need to match to stock numbers and file in the cabinet.', assignedTo: 'Germaine Dua', assignedBy: 'Keith Hardy', priority: 'Medium', status: 'In Progress', created: now - day, deadline: '', reminder: '' },
+    { id: 3, title: 'Update price boards on showroom floor', notes: 'New prices were approved Friday. All retail boards need updating before the weekend.', assignedTo: 'Haider Ahmed', assignedBy: 'Keith Hardy', priority: 'High', status: 'To Do', created: now - day*3, deadline: new Date(Date.now() - 2*3600000).toISOString().slice(0,16), reminder: '' },
+    { id: 4, title: 'Order coffee machine pods and office supplies', notes: 'Running low on pods. Also need printer paper and a new stapler.', assignedTo: 'Moamel Alameri', assignedBy: 'Germaine Dua', priority: 'Low', status: 'Done', created: now - day*5, deadline: '', reminder: '' },
+    { id: 5, title: 'Check and top up all forecourt vehicle screenwashes', notes: 'Six vehicles on the front row — check and fill. Fluid is in the workshop store.', assignedTo: 'Fred', assignedBy: 'Ibrahim Ata', priority: 'Medium', status: 'Done', created: now - day*4, deadline: '', reminder: '' },
+    { id: 6, title: 'Print and laminate new MOT price list for reception', notes: 'Updated list is saved on the shared drive. Print A3 and laminate. Put in reception stand.', assignedTo: 'Ismael Al Ameri', assignedBy: 'Keith Hardy', priority: 'Low', status: 'To Do', created: now - 3600000, deadline: '', reminder: '' },
+  ];
+  saveJobs();
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────
+function isOverdue(job) {
+  if (!job.deadline || job.status === 'Done') return false;
+  return new Date(job.deadline) < new Date();
+}
+function deadlineLabel(job) {
+  if (!job.deadline) return null;
+  const diff = new Date(job.deadline) - Date.now();
+  const hours = Math.floor(diff / 3600000);
+  const mins = Math.floor(diff / 60000);
+  if (diff < 0) return { text: 'Overdue by ' + Math.abs(Math.floor(diff/3600000)) + 'hr', cls: 'deadline-warn' };
+  if (hours < 2) return { text: 'Due in ' + mins + ' mins', cls: 'deadline-warn' };
+  if (hours < 24) return { text: 'Due in ' + hours + ' hours', cls: 'deadline-near' };
+  const d = new Date(job.deadline);
+  return { text: 'Due ' + d.toLocaleDateString('en-GB', {day:'numeric',month:'short'}) + (job.deadline.includes('T') ? ' at ' + d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : ''), cls: '' };
+}
+const PRIORITY_COLOR = { High: '#ef4444', Medium: '#d4980a', Low: '#94a3b8' };
+
+// ── KPIs ─────────────────────────────────────────────────────────────
+function buildKPIs() {
+  const todo = jobs.filter(j => j.status === 'To Do').length;
+  const progress = jobs.filter(j => j.status === 'In Progress').length;
+  const done = jobs.filter(j => j.status === 'Done').length;
+  const overdue = jobs.filter(j => isOverdue(j)).length;
+  const kpis = [
+    { v: jobs.length, l: 'Total Jobs', c: '#003DA5' },
+    { v: todo, l: 'To Do', c: '#6366f1' },
+    { v: progress, l: 'In Progress', c: '#d4980a' },
+    { v: overdue, l: 'Overdue', c: '#ef4444' },
+    { v: done, l: 'Completed', c: '#1a7f37' },
+  ];
+  document.getElementById('kpi-row').innerHTML = kpis.map(k =>
+    `<div class="kpi-card" style="border-top-color:${k.c}">
+      <div class="kpi-val" style="color:${k.c}">${k.v}</div>
+      <div class="kpi-label">${k.l}</div>
+    </div>`
+  ).join('');
+}
+
+// ── FILTER TABS ───────────────────────────────────────────────────────
+function buildTabs() {
+  const tabs = [
+    { id: 'all', label: 'All', count: jobs.length },
+    { id: 'todo', label: 'To Do', count: jobs.filter(j => j.status === 'To Do').length },
+    { id: 'progress', label: 'In Progress', count: jobs.filter(j => j.status === 'In Progress').length },
+    { id: 'overdue', label: 'Overdue', count: jobs.filter(j => isOverdue(j)).length, cls: 'overdue' },
+    { id: 'done', label: 'Done', count: jobs.filter(j => j.status === 'Done').length, cls: 'done' },
+  ];
+  document.getElementById('status-tabs').innerHTML = tabs.map(t =>
+    `<div class="ftab ${t.cls||''} ${activeFilter === t.id ? 'active' : ''}" onclick="setFilter('${t.id}')">
+      ${t.label} <span style="opacity:.7">(${t.count})</span>
+    </div>`
+  ).join('');
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  buildTabs();
+  renderJobs();
+}
+
+// ── STAFF DROPDOWNS ───────────────────────────────────────────────────
+function populateStaffDropdowns() {
+  const sel = document.getElementById('assign-filter');
+  const jAssign = document.getElementById('j-assign');
+  const jBy = document.getElementById('j-assignedby');
+  const opts = AC_STAFF.map(s => `<option value="${s.name}">${s.name} — ${s.dept}</option>`).join('');
+  sel.innerHTML = '<option value="all">All Staff</option>' + AC_STAFF.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+  jAssign.innerHTML = '<option value="">Select staff member...</option>' + opts;
+  jBy.innerHTML = opts;
+  // Default assignedBy to current user
+  const cu = getCurrentUser();
+  if (cu) { jBy.value = cu.name || ''; }
+}
+
+// ── RENDER JOBS ───────────────────────────────────────────────────────
+function renderJobs() {
+  const search = (document.getElementById('search-box').value || '').toLowerCase();
+  const assignF = document.getElementById('assign-filter').value;
+  const priF = document.getElementById('priority-filter').value;
+
+  let filtered = jobs.slice();
+
+  // Status filter
+  if (activeFilter === 'todo') filtered = filtered.filter(j => j.status === 'To Do');
+  else if (activeFilter === 'progress') filtered = filtered.filter(j => j.status === 'In Progress');
+  else if (activeFilter === 'overdue') filtered = filtered.filter(j => isOverdue(j));
+  else if (activeFilter === 'done') filtered = filtered.filter(j => j.status === 'Done');
+
+  // Search
+  if (search) filtered = filtered.filter(j =>
+    (j.title||'').toLowerCase().includes(search) ||
+    (j.notes||'').toLowerCase().includes(search) ||
+    (j.assignedTo||'').toLowerCase().includes(search)
+  );
+
+  // Staff filter
+  if (assignF !== 'all') filtered = filtered.filter(j => j.assignedTo === assignF);
+  if (priF !== 'all') filtered = filtered.filter(j => j.priority === priF);
+
+  // Sort: overdue first, then by created desc
+  filtered.sort((a, b) => {
+    const aOver = isOverdue(a) ? 1 : 0;
+    const bOver = isOverdue(b) ? 1 : 0;
+    if (bOver !== aOver) return bOver - aOver;
+    return b.created - a.created;
+  });
+
+  const grid = document.getElementById('job-grid');
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-clipboard-check"></i><p>No jobs found</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(job => {
+    const over = isOverdue(job);
+    const pCol = PRIORITY_COLOR[job.priority] || '#94a3b8';
+    const dl = deadlineLabel(job);
+    const statusCls = { 'To Do': 'sb-todo', 'In Progress': 'sb-progress', 'Done': 'sb-done' };
+    const cardCls = over ? 'overdue' : (job.priority || 'medium').toLowerCase() + '-priority';
+    const isDone = job.status === 'Done';
+
+    let actionBtns = '';
+    if (isDone) {
+      actionBtns = `<div class="jc-btn reopen" onclick="setStatus(${job.id},'To Do')"><i class="fas fa-undo"></i> Reopen</div>`;
+    } else if (job.status === 'To Do') {
+      actionBtns = `
+        <div class="jc-btn progress" onclick="setStatus(${job.id},'In Progress')"><i class="fas fa-play"></i> Start</div>
+        <div class="jc-btn complete" onclick="setStatus(${job.id},'Done')"><i class="fas fa-check"></i> Done</div>`;
+    } else {
+      actionBtns = `
+        <div class="jc-btn" onclick="setStatus(${job.id},'To Do')"><i class="fas fa-pause"></i> Pause</div>
+        <div class="jc-btn complete" onclick="setStatus(${job.id},'Done')"><i class="fas fa-check"></i> Complete</div>`;
+    }
+
+    return `<div class="job-card ${cardCls} ${isDone ? 'done-card' : ''}">
+      <div class="jc-top">
+        <div class="jc-title">${job.title}</div>
+        <div class="jc-meta">
+          <div class="priority-dot" style="background:${pCol}"></div>
+          <span class="priority-label" style="color:${pCol}">${job.priority}</span>
+          <span class="status-badge ${over ? 'sb-overdue' : (statusCls[job.status]||'sb-todo')}">${over ? '⚠ Overdue' : job.status}</span>
+        </div>
+      </div>
+      ${job.notes ? `<div class="jc-notes">${job.notes}</div>` : ''}
+      <div class="jc-info">
+        <span><i class="fas fa-user"></i> ${job.assignedTo}</span>
+        <span style="color:#94a3b8">by ${job.assignedBy||'—'}</span>
+        ${dl ? `<span class="${dl.cls}"><i class="fas fa-clock"></i> ${dl.text}</span>` : ''}
+      </div>
+      <div class="jc-actions">
+        ${actionBtns}
+        <div class="jc-btn" style="flex:0;padding:7px 10px" onclick="editJob(${job.id})" title="Edit"><i class="fas fa-edit"></i></div>
+        <div class="jc-btn" style="flex:0;padding:7px 10px;color:#ef4444" onclick="deleteJob(${job.id})" title="Delete"><i class="fas fa-trash"></i></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────
+function setStatus(id, status) {
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  job.status = status;
+  if (status === 'Done') job.completedAt = Date.now();
+  saveJobs();
+  buildKPIs();
+  buildTabs();
+  renderJobs();
+  showToast(status === 'Done' ? '✓ Job marked complete' : 'Status updated', 'success');
+}
+
+function deleteJob(id) {
+  if (!confirm('Delete this job?')) return;
+  jobs = jobs.filter(j => j.id !== id);
+  saveJobs();
+  buildKPIs();
+  buildTabs();
+  renderJobs();
+  showToast('Job deleted', 'info');
+}
+
+function editJob(id) {
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Edit Job';
+  document.getElementById('save-btn-label').textContent = 'Save Changes';
+  document.getElementById('j-title').value = job.title || '';
+  document.getElementById('j-notes').value = job.notes || '';
+  document.getElementById('j-assign').value = job.assignedTo || '';
+  document.getElementById('j-assignedby').value = job.assignedBy || '';
+  document.getElementById('j-priority').value = job.priority || 'Medium';
+  document.getElementById('j-deadline').value = job.deadline || '';
+  document.getElementById('j-reminder').value = job.reminder || '';
+  document.getElementById('job-modal').classList.add('open');
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────
+function openNewJob() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'New Job';
+  document.getElementById('save-btn-label').textContent = 'Create Job';
+  document.getElementById('j-title').value = '';
+  document.getElementById('j-notes').value = '';
+  document.getElementById('j-assign').value = '';
+  document.getElementById('j-priority').value = 'Medium';
+  document.getElementById('j-deadline').value = '';
+  document.getElementById('j-reminder').value = '';
+  const cu = getCurrentUser();
+  if (cu) document.getElementById('j-assignedby').value = cu.name || '';
+  document.getElementById('job-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('job-modal').classList.remove('open');
+  editingId = null;
+}
+
+function saveJob() {
+  const title = document.getElementById('j-title').value.trim();
+  const assign = document.getElementById('j-assign').value;
+  if (!title) { showToast('Please enter a job title', 'error'); return; }
+  if (!assign) { showToast('Please assign the job to a staff member', 'error'); return; }
+
+  if (editingId) {
+    const job = jobs.find(j => j.id === editingId);
+    if (job) {
+      job.title = title;
+      job.notes = document.getElementById('j-notes').value.trim();
+      job.assignedTo = assign;
+      job.assignedBy = document.getElementById('j-assignedby').value;
+      job.priority = document.getElementById('j-priority').value;
+      job.deadline = document.getElementById('j-deadline').value;
+      job.reminder = document.getElementById('j-reminder').value;
+    }
+    showToast('Job updated', 'success');
+  } else {
+    jobs.unshift({
+      id: Date.now(),
+      title,
+      notes: document.getElementById('j-notes').value.trim(),
+      assignedTo: assign,
+      assignedBy: document.getElementById('j-assignedby').value,
+      priority: document.getElementById('j-priority').value,
+      deadline: document.getElementById('j-deadline').value,
+      reminder: document.getElementById('j-reminder').value,
+      status: 'To Do',
+      created: Date.now(),
+    });
+    showToast('Job created and assigned to ' + assign, 'success');
+  }
+
+  saveJobs();
+  closeModal();
+  buildKPIs();
+  buildTabs();
+  renderJobs();
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+// ── INIT ─────────────────────────────────────────────────────────────
+document.getElementById('nav-user').textContent = getCurrentUser().name;
+loadJobs();
+populateStaffDropdowns();
+buildKPIs();
+buildTabs();
+renderJobs();
+
+// Last import badge
+(function(){
+  try {
+    var ts = Math.max(parseInt(localStorage.getItem('ce_last_import_stock')||'0'),parseInt(localStorage.getItem('ce_last_import_etrack')||'0'));
+    var el = document.getElementById('lastImportBadge');
+    if(!el||!ts)return;
+    var ago = Math.floor((Date.now()-ts)/3600000);
+    el.textContent = ago < 24 ? 'Imported '+ago+'hr ago' : 'Imported '+Math.floor(ago/24)+'d ago';
+  } catch(e){}
+})();
+});
+
+</script>
+
+<!-- NOTIFICATION PANEL -->
+<div class="notif-overlay" id="notifOverlay" onclick="closeNotifPanel()"></div>
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-hdr">
+    <span class="notif-title"><i class="fas fa-bell"></i> Notifications</span>
+    <button onclick="markAllRead();renderNotifPanel()" style="background:none;border:none;font-size:11px;color:var(--ink3);cursor:pointer;font-family:inherit;font-weight:600">Mark all read</button>
+    <button onclick="closeNotifPanel()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--ink3);padding:2px 6px">&times;</button>
+  </div>
+  <div class="notif-list" id="notifList"></div>
+</div>
+<script>
+// ── NAV BELL ──────────────────────────────────────────────────────
+function updateBell() {
+  var count = getUnreadCount();
+  var badge = document.getElementById('bellBadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = count > 9 ? '9+' : count;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function openNotifPanel() {
+  document.getElementById('notifPanel').classList.add('open');
+  document.getElementById('notifOverlay').classList.add('open');
+  renderNotifPanel();
+  markAllRead();
+  setTimeout(updateBell, 300);
+}
+
+function closeNotifPanel() {
+  document.getElementById('notifPanel').classList.remove('open');
+  document.getElementById('notifOverlay').classList.remove('open');
+}
+
+function renderNotifPanel() {
+  var notifs = getMyNotifications();
+  var list = document.getElementById('notifList');
+  if (!notifs.length) {
+    list.innerHTML = '<div class="notif-empty"><i class="fas fa-bell-slash"></i>No notifications yet</div>';
+    return;
+  }
+  list.innerHTML = notifs.slice(0, 30).map(function(n) {
+    var ago = timeAgo(n.ts);
+    var typeLabel = { handover:'Handover', urgent:'Urgent', skip:'Skipped', sendback:'Sent Back', fault:'Fault' }[n.type] || n.type;
+    return '<div class="notif-item' + (n.read ? '' : ' unread') + '" onclick="window.location.href=\'' + (n.link||'workflow.html') + '\'">' +
+      '<div class="notif-item-hdr">' +
+      '<span class="notif-reg">' + n.reg + '</span>' +
+      '<span class="notif-type ' + n.type + '">' + typeLabel + '</span>' +
+      '</div>' +
+      '<div class="notif-body">' + n.vehicle + ' — ' + n.stage + (n.fromName ? ' · from ' + n.fromName : '') + '</div>' +
+      (n.note ? '<div class="notif-meta">"' + n.note.slice(0,60) + (n.note.length>60?'…':'') + '"</div>' : '') +
+      '<div class="notif-meta">' + ago + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function timeAgo(ts) {
+  var diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'hr ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+// Poll for new notifications every 60s
+setInterval(updateBell, 60000);
+document.addEventListener('DOMContentLoaded', function() { setTimeout(updateBell, 1000); });
+</script>
+</body>
+</html>

@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CapEye — System Proposal · Auto Capital</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+  --red: #C8102E; --navy: #003DA5; --dark: #0B1120;
+  --ink: #111827; --ink2: #374151; --ink3: #6B7280;
+  --bg: #F7F8FA; --white: #FFFFFF;
+  --border: #E5E7EB; --border2: #D1D5DB;
+  --green: #15803D; --gold: #A16207;
+  --red-t: rgba(200,16,46,.07);
+  --navy-t: rgba(0,61,165,.07);
+  --green-t: rgba(21,128,61,.07);
+  --gold-t: rgba(161,98,7,.07);
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100vh; overflow:hidden; font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--ink); }
+
+/* ═══ SHELL ═══ */
+.shell { display:grid; grid-template-rows:54px 1fr 60px; height:100vh; }
+
+/* ── TOPBAR ── */
+.topbar {
+  background:#fff; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 32px; gap:14px;
+  box-shadow:0 1px 6px rgba(0,0,0,.05); z-index:10;
+}
+.t-mark { background:var(--red); color:#fff; font-family:'IBM Plex Sans',sans-serif; font-size:11px; font-weight:700; padding:4px 10px; border-radius:4px; letter-spacing:2px; flex-shrink:0; text-transform:uppercase; }
+.t-name { font-family:'IBM Plex Sans',sans-serif; font-size:15px; font-weight:700; color:var(--ink); flex-shrink:0; letter-spacing:-.2px; }
+.t-div  { width:1px; height:22px; background:var(--border); flex-shrink:0; }
+.t-sub  { font-size:11px; font-weight:600; color:var(--ink3); letter-spacing:.3px; flex-shrink:0; }
+.t-mid  { flex:1; display:flex; align-items:center; justify-content:center; gap:10px; }
+.dots   { display:flex; gap:5px; align-items:center; }
+.dot    { width:7px; height:7px; border-radius:50%; background:var(--border2); cursor:pointer; transition:all .3s ease; }
+.dot.done   { background:var(--navy); }
+.dot.active { background:var(--red); width:22px; border-radius:4px; }
+.t-count { font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; color:var(--ink3); }
+.t-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.tbtn { padding:7px 16px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; border:none; font-family:'IBM Plex Sans',sans-serif; transition:all .18s; display:inline-flex; align-items:center; gap:5px; }
+.tbtn-ghost { background:transparent; border:1px solid var(--border2); color:var(--ink3); }
+.tbtn-ghost:hover { border-color:var(--ink); color:var(--ink); }
+.tbtn-red { background:var(--red); color:#fff; }
+.tbtn-red:hover { background:#A50025; }
+
+/* ── SLIDE AREA ── */
+.slide-area { position:relative; overflow:hidden; }
+.slide { display:none; position:absolute; inset:0; overflow-y:auto; }
+.slide.active { display:flex; animation:sIn .3s ease; }
+@keyframes sIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+/* ── BOTTOM BAR ── */
+.botbar {
+  background:#fff; border-top:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 32px; box-shadow:0 -1px 6px rgba(0,0,0,.04);
+}
+.bot-label { font-size:12px; font-weight:700; color:var(--ink2); display:flex; align-items:center; gap:8px; }
+.bot-label::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--red); flex-shrink:0; display:block; }
+.bot-right { display:flex; align-items:center; gap:10px; }
+.kbd-hint { font-size:10px; color:var(--ink3); display:flex; align-items:center; gap:4px; }
+.k { background:var(--bg); border:1px solid var(--border2); border-radius:3px; padding:1px 6px; font-family:'IBM Plex Mono',monospace; font-size:9px; }
+.demo-btn {
+  padding:9px 22px; border-radius:7px; font-size:12px; font-weight:700;
+  background:var(--navy); color:#fff; text-decoration:none;
+  display:inline-flex; align-items:center; gap:8px; transition:all .18s;
+}
+.demo-btn:hover { background:#002070; transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,61,165,.3); }
+.demo-btn.hidden { visibility:hidden; }
+
+/* ═══════════════════════
+   SLIDE LAYOUTS
+═══════════════════════ */
+
+/* shared heading */
+.eyebrow { font-size:10px; font-weight:700; letter-spacing:3.5px; text-transform:uppercase; color:var(--red); margin-bottom:8px; }
+.slide-h { font-family:'IBM Plex Serif',serif; font-size:36px; font-weight:700; color:var(--ink); line-height:1.1; letter-spacing:-.2px; margin-bottom:10px; }
+.slide-h em { color:var(--red); font-style:normal; }
+.slide-sub { font-size:14px; color:var(--ink3); line-height:1.65; max-width:640px; }
+
+/* ── SLIDE 1: COVER ── */
+.s-cover { flex-direction:row; background:#fff; }
+.cv-l {
+  width:46%; background:var(--dark); padding:64px 56px;
+  display:flex; flex-direction:column; justify-content:center;
+  position:relative; overflow:hidden; flex-shrink:0;
+}
+.cv-l::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse 700px 600px at -5% 110%, rgba(0,61,165,.45), transparent);
+  pointer-events:none;
+}
+.cv-l::after {
+  content:''; position:absolute; left:0; top:0; bottom:0; width:4px;
+  background:linear-gradient(180deg, var(--red) 0%, var(--navy) 100%);
+}
+.cv-tag { font-size:10px; font-weight:700; letter-spacing:3.5px; text-transform:uppercase; color:rgba(200,16,46,.7); margin-bottom:16px; position:relative; z-index:1; }
+.cv-big { font-family:'IBM Plex Serif',serif; font-size:72px; font-weight:700; color:#fff; line-height:.95; letter-spacing:-.5px; position:relative; z-index:1; margin-bottom:10px; }
+.cv-big em { color:var(--red); font-style:normal; }
+.cv-strap { font-family:'IBM Plex Sans',sans-serif; font-size:11px; font-weight:500; letter-spacing:5px; text-transform:uppercase; color:rgba(255,255,255,.4); position:relative; z-index:1; margin-bottom:28px; }
+.cv-live { display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:#22C55E; background:rgba(34,197,94,.1); padding:6px 14px; border-radius:20px; border:1px solid rgba(34,197,94,.2); position:relative; z-index:1; }
+.pulse { width:7px; height:7px; border-radius:50%; background:#22C55E; animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+.cv-r { flex:1; background:#fff; padding:56px 52px; display:flex; flex-direction:column; justify-content:center; }
+.cv-r-eye { font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--ink3); margin-bottom:16px; }
+.cv-r-h { font-family:'IBM Plex Sans',sans-serif; font-size:22px; font-weight:700; color:var(--ink); letter-spacing:-.3px; line-height:1.3; margin-bottom:14px; }
+.cv-r-body { font-size:14px; color:var(--ink2); line-height:1.75; margin-bottom:24px; }
+.cv-pills { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:26px; }
+.cv-pill { padding:5px 13px; border-radius:20px; font-size:11px; font-weight:600; background:var(--bg); border:1px solid var(--border); color:var(--ink2); }
+.cv-url { padding-top:20px; border-top:1px solid var(--border); font-size:11px; color:var(--ink3); display:flex; align-items:center; gap:7px; }
+.cv-url a { color:var(--navy); font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600; text-decoration:none; }
+.cv-url a:hover { text-decoration:underline; }
+
+/* ── SLIDE 2: PROBLEM ── */
+.s-problem { flex-direction:column; background:#fff; padding:48px 56px; }
+.prob-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:13px; margin-top:28px; }
+.prob {
+  border:1px solid var(--border); border-radius:11px; padding:20px;
+  position:relative; overflow:hidden; background:#fff; transition:box-shadow .2s;
+}
+.prob:hover { box-shadow:0 4px 20px rgba(0,0,0,.08); }
+.prob::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--pc); }
+.p-ico { font-size:24px; margin-bottom:9px; }
+.p-title { font-size:13px; font-weight:800; color:var(--ink); margin-bottom:5px; }
+.p-body { font-size:12px; color:var(--ink3); line-height:1.6; margin-bottom:10px; }
+.p-fix { font-size:11px; font-weight:700; color:var(--green); display:flex; align-items:center; gap:5px; }
+
+/* ── SLIDE 3: SYSTEM OVERVIEW ── */
+.s-system { flex-direction:column; background:var(--bg); padding:48px 56px; }
+.sys-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:26px; }
+.sys-card {
+  background:#fff; border:1px solid var(--border); border-radius:11px;
+  padding:20px; display:flex; flex-direction:column; gap:8px;
+  transition:all .2s;
+}
+.sys-card:hover { box-shadow:0 4px 20px rgba(0,0,0,.08); transform:translateY(-2px); }
+.sys-n { font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; color:var(--ink3); }
+.sys-ico { width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+.sys-title { font-size:13px; font-weight:800; color:var(--ink); }
+.sys-desc { font-size:11px; color:var(--ink3); line-height:1.55; }
+.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:13px; margin-top:18px; }
+.stat { background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px 20px; border-left:3px solid var(--sc); }
+.stat-v { font-family:'IBM Plex Sans',sans-serif; font-size:36px; font-weight:700; color:var(--sc); line-height:1; }
+.stat-l { font-size:10px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.5px; margin-top:4px; }
+
+/* ── SLIDE 4: WORKFLOW ── */
+.s-workflow { flex-direction:column; background:#fff; padding:48px 56px; }
+.pipeline { display:grid; grid-template-columns:repeat(6,1fr); gap:9px; margin-top:26px; }
+.ps {
+  background:var(--bg); border:1px solid var(--border); border-radius:9px;
+  padding:13px 8px; text-align:center; position:relative;
+}
+.ps + .ps::before {
+  content:'›'; position:absolute; left:-8px; top:50%; transform:translateY(-50%);
+  font-size:14px; color:var(--border2); font-weight:900; line-height:1;
+}
+.ps.hl { background:var(--navy-t); border-color:rgba(0,61,165,.22); }
+.ps.hl .ps-nm { color:var(--navy); }
+.ps-n { font-family:'IBM Plex Mono',monospace; font-size:8px; font-weight:700; color:var(--ink3); margin-bottom:3px; }
+.ps-ico { font-size:18px; line-height:1; margin-bottom:3px; }
+.ps-nm { font-size:10px; font-weight:800; color:var(--ink); line-height:1.2; }
+.ps-dp { font-size:9px; color:var(--ink3); margin-top:2px; }
+.wf-row { display:grid; grid-template-columns:repeat(3,1fr); gap:13px; margin-top:18px; }
+.wf-box { background:var(--bg); border-radius:10px; padding:16px 18px; border-left:3px solid var(--wc); }
+.wf-t { font-size:13px; font-weight:800; color:var(--ink); margin-bottom:4px; }
+.wf-d { font-size:12px; color:var(--ink3); line-height:1.55; }
+
+/* ── SLIDE 5: WINS ── */
+.s-wins { flex-direction:row; background:#fff; }
+.wins-l {
+  width:42%; background:var(--dark); padding:56px 50px;
+  display:flex; flex-direction:column; justify-content:center;
+  position:relative; overflow:hidden; flex-shrink:0;
+}
+.wins-l::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse 600px 700px at 120% -10%, rgba(0,61,165,.4), transparent);
+  pointer-events:none;
+}
+.wins-l-tag { font-size:10px; font-weight:700; letter-spacing:3.5px; text-transform:uppercase; color:rgba(200,16,46,.7); margin-bottom:12px; position:relative; z-index:1; }
+.wins-l-h { font-family:'IBM Plex Serif',serif; font-size:40px; font-weight:700; color:#fff; line-height:1.05; letter-spacing:-.3px; margin-bottom:14px; position:relative; z-index:1; }
+.wins-l-h em { color:var(--red); font-style:normal; }
+.wins-l-sub { font-size:13px; color:rgba(255,255,255,.4); line-height:1.65; margin-bottom:28px; position:relative; z-index:1; }
+.win-stats { display:flex; flex-direction:column; gap:9px; position:relative; z-index:1; }
+.wst { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09); border-radius:9px; padding:13px 16px; display:flex; align-items:center; gap:14px; }
+.wst-v { font-family:'IBM Plex Sans',sans-serif; font-size:28px; font-weight:700; color:#fff; line-height:1; min-width:60px; }
+.wst-l { font-size:11px; color:rgba(255,255,255,.45); line-height:1.5; }
+.wins-r { flex:1; background:#fff; padding:44px 46px; display:flex; flex-direction:column; justify-content:center; gap:11px; overflow-y:auto; }
+.win-card { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:15px 17px; display:flex; align-items:flex-start; gap:12px; transition:box-shadow .2s; }
+.win-card:hover { box-shadow:0 3px 14px rgba(0,0,0,.07); }
+.win-ico { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.win-t { font-size:13px; font-weight:800; color:var(--ink); margin-bottom:3px; }
+.win-d { font-size:12px; color:var(--ink3); line-height:1.55; }
+
+/* ── SLIDE 6: LIVE PAGES ── */
+.s-pages { flex-direction:column; background:var(--bg); padding:48px 56px; }
+.pages-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:13px; margin-top:26px; }
+.pg {
+  background:#fff; border:1px solid var(--border); border-radius:11px;
+  padding:18px; display:flex; flex-direction:column; gap:6px;
+  text-decoration:none; transition:all .22s; position:relative; overflow:hidden;
+}
+.pg::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--pc); }
+.pg:hover { box-shadow:0 6px 26px rgba(0,0,0,.1); transform:translateY(-3px); border-color:transparent; }
+.pg-n { font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; color:var(--ink3); }
+.pg-ico { font-size:24px; }
+.pg-nm { font-size:14px; font-weight:800; color:var(--ink); }
+.pg-d { font-size:11px; color:var(--ink3); line-height:1.55; flex:1; }
+.pg-cta { margin-top:8px; font-size:11px; font-weight:700; color:var(--navy); display:flex; align-items:center; gap:5px; }
+
+/* ── SLIDE 7: NEXT STEPS ── */
+.s-next { flex-direction:column; background:#fff; padding:48px 56px; }
+.phases { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:26px; }
+.phase { background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:24px; position:relative; overflow:hidden; }
+.phase::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background:var(--nc); }
+.ph-badge { display:inline-flex; align-items:center; gap:5px; font-size:9px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; padding:3px 9px; border-radius:4px; border:1px solid; margin-bottom:12px; }
+.ph-num { font-family:'IBM Plex Sans',sans-serif; font-size:40px; font-weight:700; line-height:1; margin-bottom:6px; }
+.ph-title { font-size:15px; font-weight:800; color:var(--ink); margin-bottom:12px; }
+.ph-list { display:flex; flex-direction:column; gap:6px; }
+.phi { font-size:12px; color:var(--ink2); line-height:1.45; display:flex; align-items:baseline; gap:7px; }
+.phi::before { content:'→'; color:var(--ink3); font-weight:700; font-size:11px; flex-shrink:0; }
+.cta-strip {
+  background:var(--dark); border-radius:11px; padding:22px 28px;
+  margin-top:16px; display:flex; align-items:center; justify-content:space-between; gap:20px;
+}
+.cta-text-h { font-family:'IBM Plex Sans',sans-serif; font-size:18px; font-weight:700; color:#fff; margin-bottom:4px; }
+.cta-text-s { font-size:12px; color:rgba(255,255,255,.45); max-width:500px; line-height:1.5; }
+.cta-go { padding:11px 26px; background:var(--red); color:#fff; border-radius:8px; font-size:13px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:8px; white-space:nowrap; transition:all .18s; flex-shrink:0; }
+.cta-go:hover { background:#A50025; transform:translateY(-1px); }
+
+/* ── SLIDE 8: CLOSE ── */
+.s-close { flex-direction:row; background:#fff; }
+.cl-l {
+  width:45%; background:var(--dark); padding:60px 52px;
+  display:flex; flex-direction:column; justify-content:center;
+  position:relative; overflow:hidden; flex-shrink:0;
+}
+.cl-l::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse 600px 600px at 105% 105%, rgba(200,16,46,.18), transparent);
+  pointer-events:none;
+}
+.cl-l::after { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:linear-gradient(180deg,var(--red),var(--navy)); }
+.cl-tag { font-size:10px; font-weight:700; letter-spacing:3.5px; text-transform:uppercase; color:rgba(200,16,46,.65); margin-bottom:14px; position:relative; z-index:1; }
+.cl-h { font-family:'IBM Plex Serif',serif; font-size:40px; font-weight:700; color:#fff; line-height:1.1; letter-spacing:-.3px; position:relative; z-index:1; margin-bottom:24px; }
+.cl-h em { color:var(--red); font-style:normal; }
+.cl-url-box { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:9px; padding:16px 18px; position:relative; z-index:1; }
+.cl-url-lbl { font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,.3); margin-bottom:6px; }
+.cl-url-link { font-family:'IBM Plex Mono',monospace; font-size:11px; color:rgba(120,190,255,.85); text-decoration:none; line-height:1.6; display:block; }
+.cl-url-link:hover { color:#90CAFF; }
+.cl-r { flex:1; background:#fff; padding:50px 48px; display:flex; flex-direction:column; justify-content:center; gap:11px; overflow-y:auto; }
+.recap { display:flex; align-items:flex-start; gap:11px; padding:13px 16px; background:var(--bg); border-radius:9px; border-left:3px solid var(--rc); }
+.recap-ico { font-size:18px; flex-shrink:0; }
+.recap-t { font-size:13px; font-weight:800; color:var(--ink); margin-bottom:3px; }
+.recap-d { font-size:12px; color:var(--ink3); line-height:1.5; }
+.approve { background:var(--red); border-radius:10px; padding:18px 20px; color:#fff; }
+.approve-t { font-size:14px; font-weight:800; margin-bottom:5px; }
+.approve-d { font-size:12px; opacity:.82; line-height:1.6; }
+
+/* ═══════════════════════
+   COVER HERO SLIDE
+═══════════════════════ */
+.s-cover-hero {
+  position:relative; width:100%; height:100%;
+  display:flex; flex-direction:column;
+}
+.cover-bg-img {
+  position:absolute; inset:0;
+  background-image:
+    url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1600&q=80');
+  filter:saturate(0.7);
+}
+.cover-overlay {
+  position:absolute; inset:0;
+  background:linear-gradient(
+    135deg,
+    rgba(10,14,26,.96) 0%,
+    rgba(10,14,26,.88) 40%,
+    rgba(0,30,80,.82) 70%,
+    rgba(10,14,26,.9) 100%
+  );
+}
+.cover-content {
+  position:relative; z-index:1;
+  display:flex; flex-direction:column;
+  height:100%; padding:36px 56px;
+}
+.cover-top {
+  display:flex; align-items:center; gap:16px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  padding-bottom:20px; margin-bottom:0;
+}
+.cover-logo {
+  height:44px; width:auto; object-fit:contain;
+  filter:brightness(0) invert(1);
+  opacity:.9;
+}
+.cover-logo-fallback {
+  font-family:'IBM Plex Sans',sans-serif; font-size:14px; font-weight:700;
+  color:#fff; letter-spacing:2px; opacity:.7;
+}
+.cover-hero {
+  flex:1; display:flex; flex-direction:column;
+  justify-content:center; max-width:760px;
+}
+.cover-pre {
+  font-size:10px; font-weight:700; letter-spacing:4px;
+  text-transform:uppercase; color:rgba(200,16,46,.8);
+  margin-bottom:14px;
+}
+.cover-title {
+  font-family:'IBM Plex Serif',serif; font-size:72px; font-weight:700;
+  color:#fff; line-height:.85; letter-spacing:-3px; margin-bottom:10px;
+}
+.cover-title em { color:var(--red); font-style:normal; }
+.cover-subtitle {
+  font-family:'IBM Plex Sans',sans-serif; font-size:11px; font-weight:500; letter-spacing:5px; text-transform:uppercase;
+  font-style:italic; color:rgba(255,255,255,.45); margin-bottom:20px;
+  letter-spacing:1px;
+}
+.cover-desc {
+  font-size:16px; color:rgba(255,255,255,.55); line-height:1.7;
+  max-width:580px; margin-bottom:28px;
+}
+.cover-badges {
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+}
+.cbadge {
+  padding:6px 16px; border-radius:20px; font-size:11px; font-weight:600;
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14);
+  color:rgba(255,255,255,.7);
+}
+.cbadge-live {
+  background:rgba(34,197,94,.12); border-color:rgba(34,197,94,.25);
+  color:#22C55E; display:inline-flex; align-items:center; gap:6px;
+}
+.cover-bottom {
+  display:flex; align-items:center; justify-content:space-between;
+  border-top:1px solid rgba(255,255,255,.08); padding-top:18px;
+}
+.cover-url-strip {
+  display:flex; align-items:center; gap:8px; color:#fff;
+}
+.cover-url-link {
+  font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+  color:rgba(120,180,255,.8); text-decoration:none;
+}
+.cover-url-link:hover { color:#90CAFF; text-decoration:underline; }
+.cover-scroll-hint {
+  font-size:11px; color:rgba(255,255,255,.3);
+  display:flex; align-items:center; gap:5px;
+}
+
+/* ═══════════════════════
+   CLOSE HERO SLIDE
+═══════════════════════ */
+.s-close-hero {
+  position:relative; width:100%; height:100%;
+  display:flex;
+}
+.close-bg-img {
+  position:absolute; inset:0;
+  background-image:
+    url('https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1600&q=80');
+    background-size:cover; background-position:center 45%;
+  filter:saturate(0.5);
+}
+.close-overlay {
+  position:absolute; inset:0;
+  background:linear-gradient(
+    110deg,
+    rgba(10,14,26,.97) 0%,
+    rgba(10,14,26,.92) 55%,
+    rgba(0,30,80,.75) 100%
+  );
+}
+.close-content {
+  position:relative; z-index:1; width:100%;
+  display:flex; flex-direction:column; padding:36px 56px; gap:0;
+}
+.close-top {
+  padding-bottom:18px; border-bottom:1px solid rgba(255,255,255,.08);
+  margin-bottom:24px;
+}
+.close-main {
+  flex:1; display:flex; gap:48px;
+}
+/* close-content override - grid for rows */
+.close-row { display:flex; gap:48px; align-items:flex-start; }
+.close-left { flex:1; display:flex; flex-direction:column; gap:16px; }
+.close-right { width:280px; flex-shrink:0; display:flex; align-items:center; }
+.close-tag {
+  font-size:10px; font-weight:700; letter-spacing:3.5px;
+  text-transform:uppercase; color:rgba(200,16,46,.7);
+}
+.close-h {
+  font-family:'IBM Plex Serif',serif; font-size:40px; font-weight:700;
+  color:#fff; line-height:.92; letter-spacing:-1.5px;
+}
+.close-h em { color:var(--red); font-style:normal; }
+.close-recap-list { display:flex; flex-direction:column; gap:9px; }
+.cr-item {
+  display:flex; align-items:flex-start; gap:10px;
+  font-size:12px; color:rgba(255,255,255,.55); line-height:1.5;
+}
+.cr-dot {
+  width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:4px;
+}
+.cr-item strong { color:rgba(255,255,255,.85); font-weight:700; }
+.close-cta-box {
+  background:var(--red); border-radius:10px; padding:18px 20px;
+  display:flex; flex-direction:column; gap:6px;
+}
+.close-cta-t { font-size:14px; font-weight:800; color:#fff; }
+.close-cta-d { font-size:12px; color:rgba(255,255,255,.75); line-height:1.55; }
+.close-cta-btn {
+  margin-top:8px; align-self:flex-start;
+  padding:9px 22px; background:#fff; color:var(--red);
+  border-radius:7px; font-size:12px; font-weight:700;
+  text-decoration:none; display:inline-flex; align-items:center; gap:7px;
+  transition:all .18s;
+}
+.close-cta-btn:hover { background:rgba(255,255,255,.9); transform:translateY(-1px); }
+
+/* URL card on close slide */
+.close-url-card {
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+  border-radius:14px; padding:28px 24px; width:100%;
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+  gap:6px;
+}
+.close-url-eye {
+  font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+  color:rgba(255,255,255,.3);
+}
+.close-url-ce {
+  font-family:'IBM Plex Sans',sans-serif; font-size:32px; font-weight:700;
+  color:#fff; line-height:1; letter-spacing:-1px; margin:4px 0;
+}
+.close-url-ce em { color:var(--red); font-style:normal; }
+.close-url-sub {
+  font-family:'IBM Plex Sans',sans-serif; font-size:10px; font-weight:500; letter-spacing:3px; text-transform:uppercase;
+  font-style:italic; color:rgba(255,255,255,.35);
+}
+.close-url-divider {
+  width:40px; height:2px; background:var(--red); border-radius:1px;
+  margin:10px 0;
+}
+.close-url-lbl {
+  font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+  color:rgba(255,255,255,.3);
+}
+.close-url-addr {
+  font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:500;
+  color:rgba(120,190,255,.8); text-decoration:none; line-height:1.6;
+}
+.close-url-addr:hover { color:#90CAFF; }
+.close-url-stats {
+  display:flex; gap:16px; margin-top:14px;
+  padding-top:14px; border-top:1px solid rgba(255,255,255,.08);
+  width:100%; justify-content:center;
+}
+.cus { text-align:center; }
+.cus-v {
+  font-family:'IBM Plex Sans',sans-serif; font-size:24px; font-weight:700;
+  color:#fff; line-height:1;
+}
+.cus-l {
+  font-size:9px; font-weight:700; text-transform:uppercase;
+  letter-spacing:1px; color:rgba(255,255,255,.3); margin-top:2px;
+}
+
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="t-mark">CE</div>
+    <div class="t-name">CapEye</div>
+    <div class="t-div"></div>
+    <div class="t-sub">System Proposal · Auto Capital</div>
+    <div class="t-mid">
+      <div class="dots" id="dots"></div>
+      <div class="t-count" id="count">01 / 08</div>
+    </div>
+    <div class="t-right">
+      <div class="kbd-hint"><span class="k">←</span><span class="k">→</span></div>
+      <button class="tbtn tbtn-ghost" onclick="prev()"><i class="fas fa-chevron-left"></i> Back</button>
+      <button class="tbtn tbtn-red"   onclick="next()">Next <i class="fas fa-chevron-right"></i></button>
+    </div>
+  </div>
+
+  <!-- SLIDES -->
+  <div class="slide-area" id="sa">
+
+    <!-- ════ SLIDE 1 — COVER ════ -->
+    <div class="slide active" data-title="Introduction" data-url="">
+      <div class="s-cover-hero">
+        <!-- Background image layer -->
+        <div class="cover-bg-img"></div>
+        <!-- Dark overlay -->
+        <div class="cover-overlay"></div>
+        <!-- Content -->
+        <div class="cover-content">
+          <!-- Top: Logo -->
+          <div class="cover-top">
+            <img src="./auto-capital-logo.png" alt="Auto Capital" class="cover-logo" onerror="this.style.display='none'">
+            <div class="cover-logo-fallback">AUTO CAPITAL</div>
+          </div>
+          <!-- Centre: Hero text -->
+          <div class="cover-hero">
+            <div class="cover-pre">System Proposal · 2025</div>
+            <div class="cover-title">Cap<em>Eye</em></div>
+            <div class="cover-subtitle">Command Centre</div>
+            <div class="cover-desc">A complete back-office platform that tracks every vehicle from intake to sale — built specifically for Auto Capital.</div>
+            <div class="cover-badges">
+              <div class="cbadge cbadge-live"><div class="pulse"></div>Live &amp; running today</div>
+              <div class="cbadge">🚗 305 Vehicles</div>
+              <div class="cbadge">🔑 298 Keys</div>
+              <div class="cbadge">🔄 12-Stage Workflow</div>
+              <div class="cbadge">📋 Full Audit Trail</div>
+            </div>
+          </div>
+          <!-- Bottom: URL strip -->
+          <div class="cover-bottom">
+            <div class="cover-url-strip">
+              <span style="opacity:.5;font-size:11px">Live at</span>
+              <a href="https://www.capeye.co.uk/index.html" target="_blank" class="cover-url-link">
+                www.capeye.co.uk
+              </a>
+            </div>
+            <div class="cover-scroll-hint"><i class="fas fa-chevron-right" style="font-size:10px"></i> Press → to begin</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ SLIDE 2 — THE PROBLEM ════ -->
+    <div class="slide" data-title="The Problem" data-url="">
+      <div class="s-problem">
+        <div class="eyebrow">Why CapEye Was Built</div>
+        <div class="slide-h">The 6 problems every<br>growing dealership <em>faces</em></div>
+        <div class="slide-sub">These aren't unique — but without the right system they compound as your team and stock levels grow. CapEye solves all six.</div>
+        <div class="prob-grid">
+          <div class="prob" style="--pc:var(--red)">
+            <div class="p-ico">📱</div>
+            <div class="p-title">WhatsApp Handovers</div>
+            <div class="p-body">Stage completions buried in group chats. No record, no accountability, nothing to refer back to when something goes wrong.</div>
+            <div class="p-fix"><i class="fas fa-check-circle"></i> Fixed — every handover logged permanently</div>
+          </div>
+          <div class="prob" style="--pc:var(--gold)">
+            <div class="p-ico">📊</div>
+            <div class="p-title">Spreadsheet Chaos</div>
+            <div class="p-body">Multiple versions, always out of date. No one trusts the numbers so everyone makes their own copy and the problem multiplies.</div>
+            <div class="p-fix"><i class="fas fa-check-circle"></i> Fixed — one live system, always current</div>
+          </div>
+          <div class="prob" style="--pc:var(--navy)">
+            <div class="p-ico">❓</div>
+            <div class="p-title">Where Is That Car?</div>
+            <div class="p-body">No way to know which stage a vehicle is at, who has it, how long it's been there, or what's been done to it so far.</div>
+            <div class="p-fix"><i class="fas fa-check-circle"></i> Fixed — 12-stage pipeline, live tracking</div>
+          </div>
+          <div class="prob" style="--pc:#D4600A">
+            <div class="p-ico">🔑</div>
+            <div class="p-title">Lost Keys Every Day</div>
+            <div class="p-body">No record of who took a key or when. Staff walk the yard asking before every test drive — wasting time and losing sales.</div>
+            <div class="p-fix"><i class="fas fa-check-circle"></i> Fixed — 298 keys tracked via eTrack</div>
+          </div>
+          <div class="prob" style="--pc:var(--green)">
+            <div class="p-ico">⏰</div>
+            <div class="p-title">Aged Stock Ignored</div>
+            <div class="p-body">Vehicles sit 90+ days without anyone noticing. By the time it's flagged the margin is gone and remarketing costs more than the profit.</div>
+            <div class="p-fix"><i class="fas fa-check-circle"></i> Fixed — automatic alerts at 60+ days</div>
+          </div>
+          <div class="prob" style="--pc:#6366F1">
+            <div class="p-ico">🚫</div>
+            <div class="p-title">No Accountability</div>
+            <div class="p-body">Disputes with no paper trail. Can't say who signed off a vehicle, when a stage was done, or what condition it was in.</div>
+            <div class="p-fix"><i class="fas fa-check-circle"></i> Fixed — full audit trail, every action logged</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ SLIDE 3 — THE SYSTEM ════ -->
+    <div class="slide" data-title="The System" data-url="https://www.capeye.co.uk/index.html">
+      <div class="s-system">
+        <div class="eyebrow">The Solution</div>
+        <div class="slide-h">11 connected pages.<br>One <em>live system.</em></div>
+        <div class="slide-sub">Every page draws from the same data. Import once in the morning — dashboard, workflow, alerts and keys all update instantly across the whole team.</div>
+        <div class="sys-grid">
+          <div class="sys-card">
+            <div class="sys-n">01</div>
+            <div class="sys-ico" style="background:var(--red-t)">📊</div>
+            <div class="sys-title">Dashboard</div>
+            <div class="sys-desc">Total stock, value, locations and live alert strip — the morning health check on one screen.</div>
+          </div>
+          <div class="sys-card">
+            <div class="sys-n">02</div>
+            <div class="sys-ico" style="background:var(--navy-t)">🚗</div>
+            <div class="sys-title">Inventory</div>
+            <div class="sys-desc">All 305 vehicles with live search, 4 filters, sort by any column and one-click CSV export.</div>
+          </div>
+          <div class="sys-card">
+            <div class="sys-n">03</div>
+            <div class="sys-ico" style="background:#EDE9FE">🔄</div>
+            <div class="sys-title">Workflow</div>
+            <div class="sys-desc">12-stage pipeline. Each stage has its own form, checklist and a permanent handover log.</div>
+          </div>
+          <div class="sys-card">
+            <div class="sys-n">04</div>
+            <div class="sys-ico" style="background:var(--red-t)">🔔</div>
+            <div class="sys-title">Smart Alerts</div>
+            <div class="sys-desc">MOT expiry, aged stock, blocked vehicles and unpriced cars — flagged automatically, filtered by type.</div>
+          </div>
+          <div class="sys-card">
+            <div class="sys-n">05</div>
+            <div class="sys-ico" style="background:var(--navy-t)">📈</div>
+            <div class="sys-title">Analytics</div>
+            <div class="sys-desc">10 live charts — stock by make, price bands, days in stock, MOT calendar and oldest stock table.</div>
+          </div>
+          <div class="sys-card">
+            <div class="sys-n">06</div>
+            <div class="sys-ico" style="background:var(--gold-t)">🔑</div>
+            <div class="sys-title">Keys Tracker</div>
+            <div class="sys-desc">Every key, board position and staff assignment — live from your daily eTrack CSV export.</div>
+          </div>
+          <div class="sys-card">
+            <div class="sys-n">07</div>
+            <div class="sys-ico" style="background:var(--green-t)">📥</div>
+            <div class="sys-title">Data Import</div>
+            <div class="sys-desc">Daily ClickDealer stock + eTrack keys CSV. Smart merge preview before applying. Takes 60 seconds.</div>
+          </div>
+          <div class="sys-card">
+            <div class="sys-n">08</div>
+            <div class="sys-ico" style="background:#EDE9FE">📋</div>
+            <div class="sys-title">Audit Trail</div>
+            <div class="sys-desc">Every handover and import logged by person, time and department. Searchable, filterable, exportable.</div>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat" style="--sc:var(--red)"><div class="stat-v">305</div><div class="stat-l">Vehicles loaded</div></div>
+          <div class="stat" style="--sc:var(--navy)"><div class="stat-v">298</div><div class="stat-l">Keys tracked</div></div>
+          <div class="stat" style="--sc:var(--green)"><div class="stat-v">11</div><div class="stat-l">Connected pages</div></div>
+          <div class="stat" style="--sc:var(--gold)"><div class="stat-v">12</div><div class="stat-l">Workflow stages</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ SLIDE 4 — WORKFLOW ════ -->
+    <div class="slide" data-title="Workflow Pipeline" data-url="https://www.capeye.co.uk/workflow.html">
+      <div class="s-workflow">
+        <div class="eyebrow">Core Feature</div>
+        <div class="slide-h">The 12-stage vehicle <em>pipeline</em></div>
+        <div class="slide-sub">Every vehicle follows the same path. Every stage has a form and checklist. Every handover is logged with a note, recipient and priority — permanently.</div>
+        <div class="pipeline">
+          <div class="ps"><div class="ps-n">01</div><div class="ps-ico">📋</div><div class="ps-nm">Intake</div><div class="ps-dp">Intake</div></div>
+          <div class="ps"><div class="ps-n">02</div><div class="ps-ico">🎨</div><div class="ps-nm">Bodywork</div><div class="ps-dp">Bodyshop</div></div>
+          <div class="ps hl"><div class="ps-n">03</div><div class="ps-ico">🖌️</div><div class="ps-nm">Paint</div><div class="ps-dp">Bodyshop</div></div>
+          <div class="ps"><div class="ps-n">04</div><div class="ps-ico">📄</div><div class="ps-nm">Legal &amp; Docs</div><div class="ps-dp">Management</div></div>
+          <div class="ps hl"><div class="ps-n">05</div><div class="ps-ico">🔧</div><div class="ps-nm">Mechanical</div><div class="ps-dp">Workshop</div></div>
+          <div class="ps"><div class="ps-n">06</div><div class="ps-ico">🔩</div><div class="ps-nm">Ext. Work</div><div class="ps-dp">Workshop</div></div>
+          <div class="ps hl"><div class="ps-n">07</div><div class="ps-ico">🧹</div><div class="ps-nm">Valeting</div><div class="ps-dp">Valeting</div></div>
+          <div class="ps"><div class="ps-n">08</div><div class="ps-ico">🔍</div><div class="ps-nm">Fault Check</div><div class="ps-dp">Workshop</div></div>
+          <div class="ps hl"><div class="ps-n">09</div><div class="ps-ico">📢</div><div class="ps-nm">Advertising</div><div class="ps-dp">Marketing</div></div>
+          <div class="ps"><div class="ps-n">10</div><div class="ps-ico">🚚</div><div class="ps-nm">Delivery</div><div class="ps-dp">Sales</div></div>
+          <div class="ps hl"><div class="ps-n">11</div><div class="ps-ico">💰</div><div class="ps-nm">Accounts</div><div class="ps-dp">Finance</div></div>
+          <div class="ps"><div class="ps-n">12</div><div class="ps-ico">✅</div><div class="ps-nm">Complete</div><div class="ps-dp">Management</div></div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-box" style="--wc:var(--red)">
+            <div class="wf-t">📝 Stage Forms &amp; Checklists</div>
+            <div class="wf-d">Each stage has its own form — condition notes, mechanic assigned, parts replaced, valet checklist, advertising channels. Nothing left to memory or message threads.</div>
+          </div>
+          <div class="wf-box" style="--wc:var(--navy)">
+            <div class="wf-t">🔄 Smart Handover Popup</div>
+            <div class="wf-d">Completing a stage opens a popup showing the full history of previous stages and exactly what the next stage involves — context before every confirmation.</div>
+          </div>
+          <div class="wf-box" style="--wc:var(--green)">
+            <div class="wf-t">🎯 Priority &amp; Accountability</div>
+            <div class="wf-d">Set Normal, Urgent or Critical on every handover. Every action is permanently logged in the Audit Trail with person, department and timestamp.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ SLIDE 5 — WINS ════ -->
+    <div class="slide" data-title="Business Wins" data-url="">
+      <div class="s-wins">
+        <div class="wins-l">
+          <div class="wins-l-tag">Business Impact</div>
+          <div class="wins-l-h">Real <em>wins</em><br>from day one</div>
+          <div class="wins-l-sub">Measurable improvements already visible — not a future promise, happening now.</div>
+          <div class="win-stats">
+            <div class="wst">
+              <div class="wst-v">60s</div>
+              <div class="wst-l">Daily import time to sync all stock &amp; keys data</div>
+            </div>
+            <div class="wst">
+              <div class="wst-v">0</div>
+              <div class="wst-l">Spreadsheets needed to run daily operations</div>
+            </div>
+            <div class="wst">
+              <div class="wst-v">100%</div>
+              <div class="wst-l">Of handovers now logged with note, person &amp; time</div>
+            </div>
+          </div>
+        </div>
+        <div class="wins-r">
+          <div class="win-card">
+            <div class="win-ico" style="background:var(--red-t)">⚡</div>
+            <div>
+              <div class="win-t">Faster vehicle turnaround</div>
+              <div class="win-d">Everyone knows exactly what to do next. No waiting, no asking, no dropped handovers between departments. Cars move faster.</div>
+            </div>
+          </div>
+          <div class="win-card">
+            <div class="win-ico" style="background:var(--navy-t)">💷</div>
+            <div>
+              <div class="win-t">Protect your margins</div>
+              <div class="win-d">Aged stock alerts at 60 days mean you act before a vehicle becomes a write-down. MOT alerts prevent costly compliance failures.</div>
+            </div>
+          </div>
+          <div class="win-card">
+            <div class="win-ico" style="background:var(--green-t)">👥</div>
+            <div>
+              <div class="win-t">Full team accountability</div>
+              <div class="win-d">Every action by every person is permanently logged. Management sees who did what and when — no more disputes with no evidence.</div>
+            </div>
+          </div>
+          <div class="win-card">
+            <div class="win-ico" style="background:var(--gold-t)">🔑</div>
+            <div>
+              <div class="win-t">End the daily key hunt</div>
+              <div class="win-d">Every key tracked to a person and board position. Find any key in 5 seconds — stop losing test drives because no one can find the keys.</div>
+            </div>
+          </div>
+          <div class="win-card">
+            <div class="win-ico" style="background:#EDE9FE">📊</div>
+            <div>
+              <div class="win-t">Smarter buying decisions</div>
+              <div class="win-d">Analytics shows which makes turn fastest, which price bands flow best, and where stock is sitting too long — data to inform every purchase.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ SLIDE 6 — LIVE PAGES ════ -->
+    <div class="slide" data-title="Live Pages — Click to Open" data-url="">
+      <div class="s-pages">
+        <div class="eyebrow">Live Demo</div>
+        <div class="slide-h">Click any card to <em>open it live</em></div>
+        <div class="slide-sub">All 11 pages are running right now at Auto Capital's address. Every card below opens the real working system in a new window.</div>
+        <div class="pages-grid">
+          <a class="pg" href="https://www.capeye.co.uk/index.html" target="_blank" style="--pc:var(--red)">
+            <div class="pg-n">01</div><div class="pg-ico">📊</div>
+            <div class="pg-nm">Dashboard</div>
+            <div class="pg-d">KPIs, total stock value, alert strip and live charts</div>
+            <div class="pg-cta"><i class="fas fa-external-link-alt"></i> Open live</div>
+          </a>
+          <a class="pg" href="https://www.capeye.co.uk/inventory.html" target="_blank" style="--pc:var(--navy)">
+            <div class="pg-n">02</div><div class="pg-ico">🚗</div>
+            <div class="pg-nm">Inventory</div>
+            <div class="pg-d">All 305 vehicles — search, filter by status, sort, export</div>
+            <div class="pg-cta"><i class="fas fa-external-link-alt"></i> Open live</div>
+          </a>
+          <a class="pg" href="https://www.capeye.co.uk/workflow.html" target="_blank" style="--pc:#7C3AED">
+            <div class="pg-n">03</div><div class="pg-ico">🔄</div>
+            <div class="pg-nm">Workflow</div>
+            <div class="pg-d">12-stage pipeline, stage forms, smart handover popup</div>
+            <div class="pg-cta"><i class="fas fa-external-link-alt"></i> Open live</div>
+          </a>
+          <a class="pg" href="https://www.capeye.co.uk/alerts.html" target="_blank" style="--pc:var(--red)">
+            <div class="pg-n">04</div><div class="pg-ico">🔔</div>
+            <div class="pg-nm">Alerts</div>
+            <div class="pg-d">MOT expiry, blocked, aged stock, no price — live filters</div>
+            <div class="pg-cta"><i class="fas fa-external-link-alt"></i> Open live</div>
+          </a>
+          <a class="pg" href="https://www.capeye.co.uk/analytics.html" target="_blank" style="--pc:var(--navy)">
+            <div class="pg-n">05</div><div class="pg-ico">📈</div>
+            <div class="pg-nm">Analytics</div>
+            <div class="pg-d">10 charts, oldest stock table, MOT calendar view</div>
+            <div class="pg-cta"><i class="fas fa-external-link-alt"></i> Open live</div>
+          </a>
+          <a class="pg" href="https://www.capeye.co.uk/keys.html" target="_blank" style="--pc:var(--gold)">
+            <div class="pg-n">06</div><div class="pg-ico">🔑</div>
+            <div class="pg-nm">Keys Tracker</div>
+            <div class="pg-d">298 keys, board positions, who has what and since when</div>
+            <div class="pg-cta"><i class="fas fa-external-link-alt"></i> Open live</div>
+          </a>
+          <a class="pg" href="https://www.capeye.co.uk/import.html" target="_blank" style="--pc:var(--green)">
+            <div class="pg-n">07</div><div class="pg-ico">📥</div>
+            <div class="pg-nm">Import</div>
+            <div class="pg-d">ClickDealer stock + eTrack keys CSV — smart preview</div>
+            <div class="pg-cta"><i class="fas fa-external-link-alt"></i> Open live</div>
+          </a>
+          <a class="pg" href="https://www.capeye.co.uk/audit.html" target="_blank" style="--pc:#6366F1">
+            <div class="pg-n">08</div><div class="pg-ico">📋</div>
+            <div class="pg-nm">Audit Trail</div>
+            <div class="pg-d">Every action logged — filter by person, dept or date</div>
+            <div class="pg-cta"><i class="fas fa-external-link-alt"></i> Open live</div>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ SLIDE 7 — NEXT STEPS ════ -->
+    <div class="slide" data-title="Roadmap &amp; Next Steps" data-url="">
+      <div class="s-next">
+        <div class="eyebrow">Roadmap</div>
+        <div class="slide-h">Phase 1 is live. Here's<br>what comes <em>next.</em></div>
+        <div class="slide-sub">CapEye currently runs on GitHub Pages with browser-local storage. The next phase moves it to a live server with real-time sync across the whole team.</div>
+        <div class="phases">
+          <div class="phase" style="--nc:var(--green)">
+            <div class="ph-badge" style="background:var(--green-t);color:var(--green);border-color:rgba(21,128,61,.2)">
+              <i class="fas fa-check-circle"></i> COMPLETE — LIVE NOW
+            </div>
+            <div class="ph-num" style="color:var(--green)">01</div>
+            <div class="ph-title">Phase 1 — MVP Live</div>
+            <div class="ph-list">
+              <div class="phi">11-page system on GitHub Pages</div>
+              <div class="phi">305 vehicles &amp; 298 keys loaded</div>
+              <div class="phi">12-stage workflow with logged handovers</div>
+              <div class="phi">Daily CSV import — ClickDealer &amp; eTrack</div>
+              <div class="phi">Smart alerts, audit trail, full analytics</div>
+              <div class="phi">All pages verified and working</div>
+            </div>
+          </div>
+          <div class="phase" style="--nc:var(--navy)">
+            <div class="ph-badge" style="background:var(--navy-t);color:var(--navy);border-color:rgba(0,61,165,.2)">
+              <i class="fas fa-arrow-right"></i> AWAITING APPROVAL
+            </div>
+            <div class="ph-num" style="color:var(--navy)">02</div>
+            <div class="ph-title">Phase 2 — Live Server &amp; Team Sync</div>
+            <div class="ph-list">
+              <div class="phi">Move to dedicated production hosting</div>
+              <div class="phi">Firebase Firestore — data syncs across all devices</div>
+              <div class="phi">One import updates every screen in real time</div>
+              <div class="phi">Handovers visible to whole team immediately</div>
+              <div class="phi">Removes browser storage limitation</div>
+              <div class="phi">Foundation for individual logins in Phase 3</div>
+            </div>
+          </div>
+          <div class="phase" style="--nc:var(--gold)">
+            <div class="ph-badge" style="background:var(--gold-t);color:var(--gold);border-color:rgba(161,98,7,.2)">
+              <i class="fas fa-road"></i> FUTURE PHASE
+            </div>
+            <div class="ph-num" style="color:var(--gold)">03</div>
+            <div class="ph-title">Phase 3 — Advanced Features</div>
+            <div class="ph-list">
+              <div class="phi">Individual staff logins &amp; role-based access</div>
+              <div class="phi">Mobile view for yard &amp; workshop staff</div>
+              <div class="phi">ClickDealer auto-pull — no manual CSV needed</div>
+              <div class="phi">Push notifications for urgent handovers</div>
+              <div class="phi">Profit tracking per vehicle</div>
+              <div class="phi">Customer-facing vehicle status portal</div>
+            </div>
+          </div>
+        </div>
+        <div class="cta-strip">
+          <div>
+            <div class="cta-text-h">Ready to approve Phase 2?</div>
+            <div class="cta-text-s">Phase 1 is live and working today. Phase 2 turns CapEye from a single-user demo into a full production tool your entire team uses, on any device, in real time.</div>
+          </div>
+          <a class="cta-go" href="https://www.capeye.co.uk/index.html" target="_blank">
+            <i class="fas fa-external-link-alt"></i> View live system
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ SLIDE 8 — CLOSE ════ -->
+    <div class="slide" data-title="Summary" data-url="https://www.capeye.co.uk/index.html">
+      <div class="s-close-hero">
+        <div class="close-bg-img"></div>
+        <div class="close-overlay"></div>
+        <div class="close-content">
+          <!-- Logo top left -->
+          <div class="close-top">
+            <img src="./auto-capital-logo.png" alt="Auto Capital" class="cover-logo" onerror="this.style.display='none'">
+          </div>
+          <!-- Row: left + right -->
+          <div class="close-row">
+          <div class="close-left">
+            <div class="close-tag">Summary</div>
+            <div class="close-h">One system.<br><em>Every stage.</em><br>All logged.</div>
+            <div class="close-recap-list">
+              <div class="cr-item"><span class="cr-dot" style="background:var(--red)"></span><div><strong>6 problems solved</strong> — WhatsApp chaos, spreadsheets, lost keys, aged stock, no audit trail</div></div>
+              <div class="cr-item"><span class="cr-dot" style="background:var(--navy)"></span><div><strong>12-stage pipeline</strong> — every handover logged, every stage tracked with notes and priority</div></div>
+              <div class="cr-item"><span class="cr-dot" style="background:#22C55E"></span><div><strong>11 pages live today</strong> — 305 vehicles, 298 keys, audit trail, analytics all running</div></div>
+              <div class="cr-item"><span class="cr-dot" style="background:var(--gold)"></span><div><strong>3-phase roadmap</strong> — Phase 2 moves to live server with full team sync</div></div>
+            </div>
+            <!-- CTA box -->
+            <div class="close-cta-box">
+              <div class="close-cta-t">Next step — Approve Phase 2</div>
+              <div class="close-cta-d">Move CapEye to a production server with Firebase real-time sync — the whole team, any device, always in sync.</div>
+              <a href="https://www.capeye.co.uk/index.html" target="_blank" class="close-cta-btn">
+                <i class="fas fa-external-link-alt"></i> Open live system
+              </a>
+            </div>
+          </div>
+          <div class="close-right">
+            <div class="close-url-card">
+              <div class="close-url-eye">Scan or click to open</div>
+              <div class="close-url-ce">Cap<em>Eye</em></div>
+              <div class="close-url-sub">Command Centre</div>
+              <div class="close-url-divider"></div>
+              <div class="close-url-lbl">Live at</div>
+              <a href="https://www.capeye.co.uk/index.html" target="_blank" class="close-url-addr">
+                www.capeye.co.uk
+              </a>
+              <div class="close-url-stats">
+                <div class="cus"><div class="cus-v">305</div><div class="cus-l">Vehicles</div></div>
+                <div class="cus"><div class="cus-v">298</div><div class="cus-l">Keys</div></div>
+                <div class="cus"><div class="cus-v">11</div><div class="cus-l">Pages</div></div>
+              </div>
+            </div>
+          </div>
+          </div><!-- /close-row -->
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /slide-area -->
+
+  <!-- BOTTOM BAR -->
+  <div class="botbar">
+    <div class="bot-label" id="botLabel">Introduction</div>
+    <div class="bot-right">
+      <div class="kbd-hint"><span class="k">←</span><span class="k">→</span> navigate</div>
+      <a class="demo-btn hidden" id="demoBtn" href="#" target="_blank">
+        <i class="fas fa-external-link-alt"></i> Open this page live
+      </a>
+    </div>
+  </div>
+
+</div><!-- /shell -->
+
+<script>
+const slides = Array.from(document.querySelectorAll('.slide'));
+const N = slides.length;
+let cur = 0;
+
+// build dots
+const dotsEl = document.getElementById('dots');
+dotsEl.innerHTML = slides.map((_,i) =>
+  `<div class="dot${i===0?' active':''}" onclick="goTo(${i})"></div>`
+).join('');
+
+function goTo(n) {
+  if (n < 0 || n >= N) return;
+  slides[cur].classList.remove('active');
+  cur = n;
+  slides[cur].classList.add('active');
+
+  // scroll inner content to top
+  const inner = slides[cur].firstElementChild;
+  if (inner) inner.scrollTop = 0;
+
+  // dots
+  document.querySelectorAll('.dot').forEach((d, i) => {
+    d.className = 'dot' + (i < cur ? ' done' : i === cur ? ' active' : '');
+  });
+
+  // counter
+  document.getElementById('count').textContent =
+    String(cur+1).padStart(2,'0') + ' / ' + String(N).padStart(2,'0');
+
+  // bottom bar
+  const s = slides[cur];
+  document.getElementById('botLabel').textContent = s.dataset.title || '';
+  const url = s.dataset.url || '';
+  const btn = document.getElementById('demoBtn');
+  if (url) { btn.href = url; btn.classList.remove('hidden'); }
+  else { btn.classList.add('hidden'); }
+}
+
+function next() { goTo(cur + 1); }
+function prev() { goTo(cur - 1); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+});
+
+goTo(0);
+</script>
+</body>
+</html>

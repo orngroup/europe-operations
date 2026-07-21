@@ -1,0 +1,1668 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CapEye v10 — Workflow</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js?v=20250720"></script>
+<script src="ac-data.js?v=20250720"></script>
+<script src="firebase-init.js?v=20250720"></script>
+<script>
+// ── SESSION CHECK ────────────────────────────────────────────
+(function() {
+  var ts = parseInt(localStorage.getItem('ce_auth_ts') || '0');
+  var TTL = 12 * 60 * 60 * 1000; // 12 hours
+  if (!ts || (Date.now() - ts) > TTL) {
+    // Clear session and redirect to login
+    ['ce_user_id','ce_user_name','ce_user_dept','ce_user_email',
+     'ce_user_admin','ce_user_price','ce_user_mgr','ce_auth_ts'].forEach(function(k){
+      localStorage.removeItem(k);
+    });
+    window.location.replace('login.html');
+  }
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="notifications.js?v=20250720"></script>
+<style>
+/* ── STANDARD LAYOUT — optimised for 19-24 inch screens ── */
+.shell,.main{
+  margin-top:54px;
+  height:calc(100vh - 54px);
+  overflow-y:auto;
+  padding:24px 28px;
+  max-width:1600px;
+  margin-left:auto;
+  margin-right:auto;
+  box-sizing:border-box;
+}
+@media(min-width:1800px){.shell,.main{max-width:1800px;padding:28px 40px}}
+@media(max-width:1200px){.shell,.main{padding:16px 20px}}
+
+.nav{position:fixed;top:0;left:0;right:0;height:54px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;z-index:100;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.nav-brand{display:flex;align-items:center;gap:8px;text-decoration:none;flex-shrink:0}
+.nav-mark{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:2px;text-transform:uppercase}
+.nav-div{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.nav-links{display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-link{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600;color:var(--ink3);text-decoration:none;white-space:nowrap;transition:all .15s}
+.nav-link:hover{background:var(--bg);color:var(--ink)}
+.nav-link.active{background:var(--red);color:#fff}
+.nav-link i{font-size:11px}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.nav-bell{position:relative;cursor:pointer;padding:6px 8px;border-radius:6px;color:var(--ink3);font-size:14px;transition:all .15s;flex-shrink:0}
+.nav-bell:hover{background:#f0f2f6;color:var(--text)}
+.bell-badge{position:absolute;top:2px;right:2px;background:#C8102E;color:#fff;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-family:"IBM Plex Mono",monospace}
+.notif-overlay{display:none;position:fixed;inset:0;z-index:200}
+.notif-overlay.open{display:block}
+.notif-panel{position:fixed;top:52px;right:12px;width:340px;max-height:500px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.15);z-index:201;display:flex;flex-direction:column;transform:translateY(-8px);opacity:0;pointer-events:none;transition:all .2s}
+.notif-panel.open{transform:translateY(0);opacity:1;pointer-events:all}
+.notif-hdr{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.notif-title{font-size:13px;font-weight:800;color:var(--text);flex:1}
+.notif-list{overflow-y:auto;flex:1}
+.notif-item{padding:12px 16px;border-bottom:1px solid #f0f2f6;cursor:pointer;transition:background .15s}
+.notif-item:hover{background:#f8f9fc}
+.notif-item.unread{background:#f0f4ff}
+.notif-item.unread:hover{background:#e8eeff}
+.notif-item-hdr{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.notif-reg{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;background:#f5c518;color:#000;padding:1px 6px;border-radius:3px}
+.notif-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:3px}
+.notif-type.handover{background:#dbeafe;color:#1d4ed8}
+.notif-type.urgent{background:#fee2e2;color:#991b1b}
+.notif-type.skip{background:#fef9c3;color:#854d0e}
+.notif-type.sendback{background:#f3e8ff;color:#6b21a8}
+.notif-.notif-meta{font-size:10px;color:var(--ink3);margin-top:3px}
+.notif-empty{padding:32px;text-align:center;color:var(--ink3);font-size:13px}
+.notif-empty i{display:block;font-size:24px;margin-bottom:8px;opacity:.3}
+:root{--red:#C8102E;--navy:#003DA5;--ink:#111827;--ink2:#374151;--ink3:#6B7280;--bg:#F7F8FA;--white:#fff;--border:#E5E7EB;--green:#10b981;--amber:#f59e0b;--font:'IBM Plex Sans',sans-serif}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh;padding-top:54px}
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,/* NAV */
+
+
+
+.nav-name{font-size:14px;font-weight:700;color:var(--ink)}
+
+
+
+
+
+
+
+
+.nav-user{font-size:12px;font-weight:600;color:var(--ink3);background:var(--bg);padding:5px 10px;border-radius:20px;border:1px solid var(--border)}
+/* MAIN */
+/* KPI STRIP */
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:8px;padding:12px 14px;border:1px solid var(--border);border-top:3px solid var(--kc,var(--navy))}
+.kpi-v{font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:700;color:var(--kc,var(--navy))}
+.kpi-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);margin-top:3px}
+/* DEPT STRIP */
+.dept-strip{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.dept-box{background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;min-width:80px}
+.dept-box-name{font-size:9px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.dept-box-num{font-size:20px;font-weight:800;color:var(--navy)}
+.dept-box-avg{font-size:10px;color:var(--ink3);margin-top:2px}
+/* VEHICLE SELECTOR */
+.selector-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:20px}
+.selector-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--ink3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.selector-row{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end}
+.field-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:5px}
+.field-input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:var(--font);color:var(--ink);background:#fff}
+.field-input:focus{outline:none;border-color:var(--navy)}
+.btn{padding:8px 16px;border-radius:7px;font-size:13px;font-weight:600;font-family:var(--font);border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-primary{background:var(--navy);color:#fff}.btn-primary:hover{opacity:.9}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{opacity:.9}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{opacity:.9}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--ink3)}.btn-ghost:hover{border-color:var(--ink);color:var(--ink)}
+.btn-amber{background:var(--amber);color:#fff}
+/* VEHICLE INFO CARD */
+.vi-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:16px;display:none}
+.vi-grid{display:grid;grid-template-columns:auto 1fr 1fr 1fr 1fr;gap:16px;align-items:center}
+.reg-plate{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;background:#f5c518;color:#000;padding:4px 12px;border-radius:6px;letter-spacing:2px;display:inline-block}
+.vi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:2px}
+.vi-val{font-size:14px;font-weight:600;color:var(--ink)}
+/* STAGE PROGRESS BAR */
+.stage-prog-wrap{margin-top:14px;overflow-x:auto;padding-bottom:4px}
+.stage-labels{display:flex;gap:0;margin-bottom:4px}
+.stage-label{flex:1;font-size:9px;font-weight:700;text-align:center;color:var(--ink3);text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px;min-width:60px}
+.stage-bar{display:flex;gap:4px}
+.stage-dot{flex:1;height:12px;border-radius:4px;background:var(--bg);cursor:pointer;transition:all .15s;min-width:60px}
+.stage-dot.completed{background:var(--green)}
+.stage-dot.current{box-shadow:0 0 0 2px var(--navy)}
+.stage-dot:hover{opacity:.8}
+/* STAGE FORM */
+.stage-form-card{background:#fff;border:1px solid var(--border);border-radius:12px;margin-bottom:20px;overflow:hidden;display:none}
+.sfh{padding:16px 20px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sfh-left .stage-num{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;opacity:.7}
+.sfh-left .stage-name{font-size:20px;font-weight:800;margin-top:2px}
+.sfh-right{display:flex;gap:8px;flex-wrap:wrap}
+.handover-banner{display:flex;align-items:center;gap:10px;padding:10px 20px;background:#ecfdf5;border-bottom:1px solid #a7f3d0;font-size:12px;color:#065f46}
+.form-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-field{display:flex;flex-direction:column;gap:4px}
+.form-field.full{grid-column:1/-1}
+.form-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)}
+.form-control{padding:8px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:var(--font);color:var(--ink);background:#fff;width:100%}
+.form-control:focus{outline:none;border-color:var(--navy)}
+.checkbox-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg);font-size:12px;color:var(--ink2)}
+/* AA CHECKLIST */
+.checklist-section{margin-bottom:16px}
+.cs-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--navy);margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid var(--navy)20}
+.ci-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--bg)}
+.ci-label{font-size:12px;color:var(--ink2);flex:1}
+.ci-btns{display:flex;gap:3px}
+.ci-btn{padding:2px 8px;border-radius:4px;border:1px solid var(--border);font-size:10px;font-weight:700;cursor:pointer;background:#fff;color:var(--ink3);transition:all .1s}
+.ci-btn.g.active{background:#d1fae5;border-color:#10b981;color:#065f46}
+.ci-btn.a.active{background:#fef3c7;border-color:#f59e0b;color:#92400e}
+.ci-btn.r.active{background:#fee2e2;border-color:#ef4444;color:#991b1b}
+/* MANAGER ACTIONS */
+.mgr-actions{display:flex;gap:8px;flex-wrap:wrap;padding:14px 20px;background:#fff8f0;border-top:1px solid #fed7aa}
+.mgr-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--amber);margin-bottom:6px;width:100%}
+/* PIPELINE TABLE */
+.pipeline-card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px}
+.pipeline-hdr{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pipeline-hdr-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--ink3)}
+.search-input{padding:7px 12px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:var(--font);width:200px}
+.search-input:focus{outline:none;border-color:var(--navy)}
+.ac-table{width:100%;border-collapse:collapse;font-size:12px}
+.ac-table thead th{background:var(--bg);padding:9px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);border-bottom:1px solid var(--border);white-space:nowrap}
+.ac-table tbody tr{border-bottom:1px solid var(--bg);transition:background .1s}
+.ac-table tbody tr:hover{background:#f0f4ff}
+.ac-table tbody td{padding:9px 12px;color:var(--ink2);white-space:nowrap}
+.stage-pill{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.urgent-badge{background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase}
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal-hdr{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1}
+.modal-title{font-size:15px;font-weight:700}
+.modal-close{background:none;border:none;font-size:18px;color:var(--ink3);cursor:pointer;padding:4px}
+.modal-.modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.mf-row{margin-bottom:14px}
+.mf-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:5px;display:block}
+.mf-input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:var(--font);color:var(--ink)}
+.mf-textarea{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:var(--font);color:var(--ink);resize:vertical;min-height:70px}
+.warn-box{padding:10px 12px;background:#fff3cd;border-radius:8px;font-size:12px;color:#856404;margin-bottom:12px}
+
+/* ── NOTIFICATION BELL ── */
+
+
+
+/* ── NOTIFICATION PANEL ── */
+.notif-overlay{display:none;position:fixed;inset:0;z-index:200}
+.notif-overlay.open{display:block}
+.notif-panel{position:fixed;top:52px;right:12px;width:340px;max-height:500px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.15);z-index:201;display:flex;flex-direction:column;transform:translateY(-8px);opacity:0;pointer-events:none;transition:all .2s}
+.notif-panel.open{transform:translateY(0);opacity:1;pointer-events:all}
+.notif-hdr{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.notif-title{font-size:13px;font-weight:800;color:var(--text);flex:1}
+.notif-list{overflow-y:auto;flex:1}
+.notif-item{padding:12px 16px;border-bottom:1px solid #f0f2f6;cursor:pointer;transition:background .15s}
+.notif-item:hover{background:#f8f9fc}
+.notif-item.unread{background:#f0f4ff}
+.notif-item.unread:hover{background:#e8eeff}
+.notif-item-hdr{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.notif-reg{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;background:#f5c518;color:#000;padding:1px 6px;border-radius:3px}
+.notif-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:3px}
+.notif-type.handover{background:#dbeafe;color:#1d4ed8}
+.notif-type.urgent{background:#fee2e2;color:#991b1b}
+.notif-type.skip{background:#fef9c3;color:#854d0e}
+.notif-type.sendback{background:#f3e8ff;color:#6b21a8}
+.notif-.notif-meta{font-size:10px;color:var(--ink3);margin-top:3px}
+.notif-empty{padding:32px;text-align:center;color:var(--ink3);font-size:13px}
+.notif-empty i{display:block;font-size:24px;margin-bottom:8px;opacity:.3}
+
+
+/* ── PHOTO UPLOAD GRID ── */
+.photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.photo-slot{position:relative;aspect-ratio:4/3;border:2px dashed var(--border);border-radius:10px;overflow:hidden;background:#fafbfc;cursor:pointer;transition:border-color .15s}
+.photo-slot:hover{border-color:var(--navy)}
+.photo-slot input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2}
+.photo-slot .photo-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;pointer-events:none;z-index:1}
+.photo-slot .photo-placeholder i{font-size:22px;color:var(--ink3)}
+.photo-slot .photo-placeholder span{font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px}
+.photo-slot img.photo-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:3;display:none}
+.photo-slot .photo-clear{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(200,16,46,.9);color:#fff;border:none;cursor:pointer;font-size:11px;display:none;align-items:center;justify-content:center;z-index:4}
+.photo-slot.has-photo{border-color:var(--green);border-style:solid}
+.photo-slot.has-photo .photo-placeholder{display:none}
+.photo-slot.has-photo img.photo-preview{display:block}
+.photo-slot.has-photo .photo-clear{display:flex}
+
+
+/* ═══════════════════════════════════════════════════════════
+   CAPEYE — GLOBAL TYPOGRAPHY & SPACING SYSTEM
+   All pages must use these values. Do not override.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Page title — the big heading at top of each page */
+.page-title, h1.page-title, h1 {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: #111827 !important;
+  letter-spacing: -0.3px !important;
+  line-height: 1.2 !important;
+  margin-bottom: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+/* Red accent word in titles (e.g. "Key Dashboard", "Stock Analytics") */
+h1 .r, h1 span.r, .page-title .r { color: #C8102E !important; font-weight: 800 !important; }
+
+/* Page subtitle */
+.page-sub, h1 + p, h1 + div.page-sub {
+  font-size: 12px !important;
+  color: #6B7280 !important;
+  font-weight: 400 !important;
+  margin-top: 2px !important;
+  margin-bottom: 0 !important;
+}
+
+/* Section headings inside cards */
+h2, .section-title, .card-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+}
+
+/* Card header labels (ALL CAPS small) */
+.card-h, .card-hdr, [class*="card-h"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  color: #6B7280 !important;
+}
+
+/* Body text */
+body {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: #374151 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Table headers */
+th, .ac-table th, thead th {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+}
+
+/* Table body cells */
+td, .ac-table td {
+  font-size: 12px !important;
+  color: #374151 !important;
+}
+
+/* KPI values */
+.kpi-v, .kpi-value, [class*="kpi-v"] {
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+}
+
+/* KPI labels */
+.kpi-l, .kpi-label, [class*="kpi-l"] {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+  margin-top: 4px !important;
+}
+
+/* Buttons — consistent sizing */
+.btn, button[class*="btn"], .tb-btn {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Badges / tags */
+.badge, [class*="-badge"], [class*="-tag"] {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+/* Form labels */
+.form-label, label[class*="form-label"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: #6B7280 !important;
+}
+
+/* Form inputs */
+input, select, textarea {
+  font-size: 13px !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Nav links — keep compact */
+.nav-link {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+}
+
+/* Registration plates — always mono */
+[class*="reg"], [class*="-plate"] {
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-weight: 700 !important;
+}
+
+</style>
+</head><body>
+
+<nav class="nav">
+  <a class="nav-brand" href="index.html"><img src="auto-capital-logo.png" alt="AC" onerror="this.style.display='none'"><span class="nav-mark" style="margin-left:4px">CE</span></a>
+  <div class="nav-div"></div>
+  <div class="nav-links">
+    <a class="nav-link" href="index.html"><i class="fas fa-gauge-high"></i> Dashboard</a>
+    <a class="nav-link" href="workflow.html" class="nav-link active"><i class="fas fa-arrows-rotate"></i> Workflow</a>
+    <a class="nav-link" href="inventory.html"><i class="fas fa-car"></i> Inventory</a>
+    <a class="nav-link" href="alerts.html"><i class="fas fa-bell"></i> Alerts</a>
+    <a class="nav-link" href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a>
+    <a class="nav-link" href="keys.html"><i class="fas fa-key"></i> Keys</a>
+    <a class="nav-link" href="auction.html"><i class="fas fa-gavel"></i> Auction</a>
+    <a class="nav-link" href="accessories.html"><i class="fas fa-wrench"></i> Accessories</a>
+    <a class="nav-link" href="aftersales.html"><i class="fas fa-headset"></i> Aftersales</a>
+    <a class="nav-link" href="staff-jobs.html"><i class="fas fa-clipboard-list"></i> Staff Jobs</a>
+    <a class="nav-link" href="import.html"><i class="fas fa-file-import"></i> Import</a>
+    <a class="nav-link" href="audit.html"><i class="fas fa-list-check"></i> Audit</a>
+    <a class="nav-link" href="team.html"><i class="fas fa-users"></i> Team</a>
+    <a class="nav-link" href="admin.html"><i class="fas fa-cog"></i> Admin</a>
+  </div>
+  <div class="nav-bell" id="navBell" onclick="openNotifPanel()" title="Notifications">
+    <i class="fas fa-bell"></i>
+    <span class="bell-badge" id="bellBadge" style="display:none">0</span>
+  </div>
+  <div class="nav-right">
+    <div class="nav-tools">
+      <a class="nav-tool" href="https://trade.hpi.co.uk/trade/preLogin.do" target="_blank">HPI</a>
+      <a class="nav-tool" href="https://www.autocapital.co.uk/" target="_blank">Website</a>
+      <a class="nav-tool" href="https://www.autocapital.co.uk/finance.php" target="_blank">Finance</a>
+    </div>
+    <span class="nav-import" id="lastImportBadge">—</span>
+    <button onclick="if(confirm('Sign out of CapEye?'))doLogout()" style="padding:5px 12px;background:rgba(200,16,46,.08);border:1px solid rgba(200,16,46,.2);border-radius:6px;color:#C8102E;font-size:11px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
+    <span class="nav-user" id="nav-user">Keith Hardy</span>
+  </div>
+</nav>
+
+<div class="main">
+
+  <!-- KPI STRIP -->
+  <div class="kpi-strip" id="kpi-strip"></div>
+
+  <!-- DEPT STRIP -->
+  <div class="dept-strip" id="dept-strip"></div>
+
+  <!-- VEHICLE SELECTOR -->
+  <div class="selector-card">
+    <div class="selector-title"><i class="fas fa-search" style="color:var(--navy)"></i> Vehicle Inspection &amp; Handover</div>
+    <div class="selector-row">
+      <div>
+        <div class="field-label">Select from Stock</div>
+        <select class="field-input" id="vehicleSelect" onchange="loadVehicle(this.value)">
+          <option value="">— Select vehicle from stock —</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Stock No</div>
+        <input class="field-input" id="stockNoInput" placeholder="e.g. R0461" onkeydown="if(event.key==='Enter')searchVehicle()">
+      </div>
+      <div>
+        <div class="field-label">Registration</div>
+        <input class="field-input" id="regInput" placeholder="e.g. RF66UBC" style="text-transform:uppercase" onkeydown="if(event.key==='Enter')searchVehicle()">
+      </div>
+      <div>
+        <div class="field-label">&nbsp;</div>
+        <button class="btn btn-primary" onclick="searchVehicle()"><i class="fas fa-search"></i> Load</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VEHICLE INFO CARD -->
+  <div class="vi-card" id="vehicleInfo">
+    <div class="vi-grid">
+      <div><span class="reg-plate" id="viReg">—</span></div>
+      <div><div class="vi-label">Vehicle</div><div class="vi-val" id="viVehicle">—</div></div>
+      <div><div class="vi-label">Location</div><div class="vi-val" id="viLocation">—</div></div>
+      <div><div class="vi-label">Status</div><div class="vi-val" id="viStatus">—</div></div>
+      <div><div class="vi-label">Price</div><div class="vi-val" id="viPrice">—</div></div>
+    </div>
+    <div class="stage-prog-wrap">
+      <div class="stage-labels" id="stageLabels"></div>
+      <div class="stage-bar" id="stageDots"></div>
+    </div>
+  </div>
+
+  <!-- STAGE FORM -->
+  <div class="stage-form-card" id="stageForm">
+    <div class="sfh">
+      <div class="sfh-left">
+        <div class="stage-num" id="formStageNum">STAGE 1 OF 11</div>
+        <div class="stage-name" id="formStageName">Vehicle Intake</div>
+      </div>
+      <div class="sfh-right">
+        <button class="btn btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="prevStage()"><i class="fas fa-chevron-left"></i> Prev</button>
+        <button class="btn btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="nextStage()">Next <i class="fas fa-chevron-right"></i></button>
+        <button class="btn btn-amber" onclick="saveDraft()"><i class="fas fa-save"></i> Save Draft</button>
+        <button class="btn btn-green complete-stage-btn" onclick="openHandoverModal()"><i class="fas fa-check-circle"></i> Complete Stage</button>
+      </div>
+    </div>
+    <div id="handoverBannerArea"></div>
+    <!-- Manager actions (skip/send-back/urgent) -->
+    <div class="mgr-actions" id="mgrActions" style="display:none">
+      <div class="mgr-label"><i class="fas fa-shield-halved"></i> Manager Actions</div>
+      <button class="btn btn-ghost" onclick="openSkipModal()"><i class="fas fa-forward"></i> Skip Stage</button>
+      <button class="btn btn-ghost" onclick="openSendBackModal()"><i class="fas fa-undo"></i> Send Back</button>
+      <button class="btn btn-amber" id="urgentBtn" onclick="toggleUrgent()"><i class="fas fa-fire"></i> Mark Urgent</button>
+      <button class="btn btn-ghost" onclick="location.href='vehicle-overview.html?reg='+currentVehicle?.registration"><i class="fas fa-eye"></i> Full History</button>
+    </div>
+    <div class="form-body">
+      <div id="stageFormBody"></div>
+    </div>
+  </div>
+
+  <!-- PIPELINE TABLE -->
+  <div class="pipeline-card">
+    <div class="pipeline-hdr">
+      <span class="pipeline-hdr-title"><i class="fas fa-stream" style="color:var(--navy)"></i> All Vehicles in Pipeline</span>
+      <input class="search-input" id="pipeSearch" placeholder="Search pipeline..." oninput="renderPipeline()">
+      <select class="search-input" id="pipeStageFilter" onchange="renderPipeline()" style="width:180px">
+        <option value="">All Stages</option>
+      </select>
+      <span style="font-size:11px;color:var(--ink3);margin-left:auto" id="pipe-count"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="ac-table">
+        <thead><tr>
+          <th>Stock No</th><th>Reg</th><th>Vehicle</th><th>Location</th><th>Price</th>
+          <th>Current Stage</th><th>Days in Stage</th><th>Last Handover</th><th>Stages Done</th><th>Action</th>
+        </tr></thead>
+        <tbody id="pipelineBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- HANDOVER MODAL -->
+<div class="modal-bg" id="handoverModal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-hdr" style="background:var(--navy);color:#fff;border-radius:14px 14px 0 0">
+      <div class="modal-title" style="color:#fff">Stage Handover</div>
+      <button class="modal-close" style="color:rgba(255,255,255,.7)" onclick="closeModal('handoverModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="hoVehicleStrip" style="padding:10px 14px;background:var(--bg);border-radius:8px;margin-bottom:14px"></div>
+      <div class="mf-row">
+        <label class="mf-label">Hand over to</label>
+        <select class="mf-input" id="hoTarget">
+          <option value="">— Select person or department —</option>
+        </select>
+      </div>
+      <div class="mf-row">
+        <label class="mf-label">Priority</label>
+        <select class="mf-input" id="hoPriority">
+          <option value="normal">Normal</option>
+          <option value="urgent">Urgent</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+      <div class="mf-row">
+        <label class="mf-label">Handover Note</label>
+        <textarea class="mf-textarea" id="hoNote" placeholder="Any notes for the next department..."></textarea>
+      </div>
+      <div id="hoHistorySummary" style="margin-top:12px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('handoverModal')">Cancel</button>
+      <button class="btn btn-green" onclick="confirmHandover()"><i class="fas fa-check"></i> Confirm Handover</button>
+    </div>
+  </div>
+</div>
+
+<!-- SKIP MODAL -->
+<div class="modal-bg" id="skipModal">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-title">Skip Stage</div><button class="modal-close" onclick="closeModal('skipModal')"><i class="fas fa-times"></i></button></div>
+    <div class="modal-body">
+      <div class="warn-box"><i class="fas fa-exclamation-triangle"></i> Skipping a stage requires sign-off and is permanently logged in the audit trail.</div>
+      <div class="mf-row"><label class="mf-label">Skip to Stage</label>
+        <select class="mf-input" id="skipTarget"></select></div>
+      <div class="mf-row"><label class="mf-label">Reason (Required)</label>
+        <textarea class="mf-textarea" id="skipReason" placeholder="Mandatory reason for skipping..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('skipModal')">Cancel</button>
+      <button class="btn btn-amber" onclick="confirmSkip()"><i class="fas fa-forward"></i> Skip Stage</button>
+    </div>
+  </div>
+</div>
+
+<!-- SEND BACK MODAL -->
+<div class="modal-bg" id="sendBackModal">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-title">Send Back</div><button class="modal-close" onclick="closeModal('sendBackModal')"><i class="fas fa-times"></i></button></div>
+    <div class="modal-body">
+      <div class="mf-row"><label class="mf-label">Send Back to Stage</label>
+        <select class="mf-input" id="sendBackTarget"></select></div>
+      <div class="mf-row"><label class="mf-label">Reason (Required)</label>
+        <textarea class="mf-textarea" id="sendBackReason" placeholder="Mandatory reason for sending back..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('sendBackModal')">Cancel</button>
+      <button class="btn btn-red" onclick="confirmSendBack()"><i class="fas fa-undo"></i> Send Back</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const vehicles = JSON.parse(JSON.stringify(AC_VEHICLES));
+let currentVehicle = null;
+let currentStageIdx = 0;
+
+/* ── INIT ── */
+function init() {
+  document.getElementById('nav-user').textContent = getCurrentUser().name;
+  // Populate vehicle selector
+  const sel = document.getElementById('vehicleSelect');
+  [...vehicles]
+    .filter(v=>v.status!=='Sold')
+    .sort((a,b)=> a.make.localeCompare(b.make) || a.model.localeCompare(b.model) || a.registration.localeCompare(b.registration))
+    .forEach(v => {
+      const o = document.createElement('option');
+      o.value = v.stockNo;
+      o.textContent = v.make+' '+v.model+' — '+v.registration;
+      sel.appendChild(o);
+    });
+  // Populate pipeline stage filter
+  const sf = document.getElementById('pipeStageFilter');
+  AC_WORKFLOW_STAGES.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.name; o.textContent = s.name; sf.appendChild(o);
+  });
+  // Check URL param
+  const params = new URLSearchParams(window.location.search);
+  const stock = params.get('stock');
+  if (stock) { document.getElementById('stockNoInput').value = stock; searchVehicle(); }
+  buildKPIs();
+  buildDeptStrip();
+  buildMyQueue();
+  renderPipeline();
+  // Show manager actions if applicable
+  if (isManager()) document.getElementById('mgrActions').style.display = 'flex';
+}
+
+/* ── KPIs ── */
+function buildKPIs() {
+  const v = vehicles;
+  const kpis = [
+    {v:v.filter(x=>x.status==='In Stock').length, l:'In Stock', c:'#3b82f6'},
+    {v:v.filter(x=>x.workflowStage==='Ready for Sale').length, l:'Ready', c:'#0891b2'},
+    {v:v.filter(x=>x.workflowStage==='Advertising').length, l:'Advertised', c:'#8b5cf6'},
+    {v:v.filter(x=>x.status==='Sold').length, l:'Sold', c:'#64748b'},
+    {v:v.filter(x=>isOverdue(x)).length, l:'Overdue', c:'#ef4444'},
+    {v:v.filter(x=>x.urgent).length, l:'Urgent', c:'#C8102E'},
+  ];
+  document.getElementById('kpi-strip').innerHTML = kpis.map(k=>
+    `<div class="kpi" style="--kc:${k.c}"><div class="kpi-v">${k.v}</div><div class="kpi-l">${k.l}</div></div>`
+  ).join('');
+}
+
+/* ── DEPT STRIP ── */
+function buildDeptStrip() {
+  const depts = {};
+  vehicles.forEach(v => {
+    const stage = AC_WORKFLOW_STAGES.find(s=>s.name===v.workflowStage);
+    if (!stage) return;
+    const d = stage.dept;
+    if (!depts[d]) depts[d] = [];
+    depts[d].push(v);
+  });
+  document.getElementById('dept-strip').innerHTML = Object.entries(depts)
+    .sort((a,b)=>b[1].length-a[1].length)
+    .map(([dept, vs]) => {
+      const dept_obj = AC_DEPARTMENTS.find(d=>d.name===dept);
+      const color = dept_obj ? dept_obj.color : '#64748b';
+      return `<div class="dept-box">
+        <div class="dept-box-name">${dept}</div>
+        <div class="dept-box-num" style="color:${color}">${vs.length}</div>
+        <div class="dept-box-avg">${vs.filter(x=>x.urgent).length} urgent</div>
+      </div>`;
+    }).join('');
+}
+
+/* ── MY QUEUE ── */
+function buildMyQueue() {
+  const user = getCurrentUser();
+  const dept = user.dept;
+  const deptToStages = {
+    'Workshop':   [4,5],
+    'Checklist':  [4,5],
+    'Valeting':   [6],
+    'Advertising':[7],
+    'Sales':      [8,9,10],
+    'Bodyshop':   [1,2,3],
+    'Management': [],
+  };
+  const myStageIds = deptToStages[dept]||[];
+  if (!myStageIds.length && dept!=='Management') return;
+  const myVehicles = vehicles.filter(v => {
+    const stage = AC_WORKFLOW_STAGES.find(s=>s.name===v.workflowStage);
+    return stage && myStageIds.includes(stage.id);
+  });
+  const qEl = document.getElementById('myQueue');
+  const qList = document.getElementById('myQueueList');
+  if (!myVehicles.length) { qEl.style.display='none'; return; }
+  qEl.style.display='block';
+  qList.innerHTML = myVehicles.slice(0,12).map(v =>
+    `<div onclick="loadVehicle('${v.stockNo}')" style="background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;min-width:160px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;background:#f5c518;color:#000;padding:1px 6px;border-radius:3px;display:inline-block;margin-bottom:4px">${v.registration}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--ink)">${v.make} ${v.model}</div>
+      <div style="font-size:11px;color:var(--ink3)">${v.workflowStage}</div>
+      ${v.urgent?'<div style="font-size:10px;font-weight:700;color:var(--red);margin-top:2px">🔥 URGENT</div>':''}
+    </div>`
+  ).join('');
+}
+
+/* ── VEHICLE SEARCH / LOAD ── */
+function searchVehicle() {
+  const stock = document.getElementById('stockNoInput').value.trim().toUpperCase();
+  const reg   = document.getElementById('regInput').value.trim().toUpperCase();
+  const sel   = document.getElementById('vehicleSelect').value;
+  let v = stock ? vehicles.find(x=>x.stockNo.toUpperCase()===stock)
+        : reg   ? vehicles.find(x=>x.registration.toUpperCase()===reg)
+        : sel   ? vehicles.find(x=>x.stockNo===sel) : null;
+  if (v) loadVehicle(v.stockNo);
+  else showToast('Vehicle not found — check stock number or registration','error');
+}
+
+function loadVehicle(stockNo) {
+  currentVehicle = vehicles.find(v=>v.stockNo===stockNo);
+  if (!currentVehicle) return;
+  document.getElementById('vehicleSelect').value = stockNo;
+  document.getElementById('vehicleInfo').style.display = 'block';
+  document.getElementById('viReg').textContent      = currentVehicle.registration;
+  document.getElementById('viVehicle').textContent  = currentVehicle.make+' '+currentVehicle.model+' '+(currentVehicle.variant||'');
+  document.getElementById('viLocation').textContent = currentVehicle.location||'—';
+  document.getElementById('viStatus').textContent   = currentVehicle.status||'—';
+  document.getElementById('viPrice').textContent    = currentVehicle.price ? formatGBP(currentVehicle.price) : 'No price';
+  // Update urgent button
+  if (isManager()) {
+    document.getElementById('urgentBtn').textContent = currentVehicle.urgent ? '🔥 Remove Urgent' : '🔥 Mark Urgent';
+  }
+  const wf = getWorkflow(stockNo);
+  const done = Object.keys(wf).map(Number).filter(n=>wf[n]&&wf[n].completed);
+  const next = done.length ? Math.max(...done)+1 : 1;
+  currentStageIdx = Math.min(next-1, AC_WORKFLOW_STAGES.length-1);
+  if (!wf[currentStageIdx+1]) { wf[currentStageIdx+1]={startedAt:new Date().toISOString()}; saveWorkflow(stockNo,wf); }
+  renderStageDots(done);
+  showStageForm(currentStageIdx);
+  document.getElementById('vehicleInfo').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function completeJobOnly() {
+  if (!currentVehicle) return;
+  const stage = AC_WORKFLOW_STAGES[currentStageIdx];
+  const wf = getWorkflow(currentVehicle.stockNo);
+  const sid = stage.id;
+  wf[sid] = {...wf[sid],...collectForm(),completed:true,completedAt:new Date().toISOString(),completedBy:getCurrentUser().name};
+  saveWorkflow(currentVehicle.stockNo, wf);
+  writeAuditLog('complete', currentVehicle.registration, stage.name+' — Job Complete', currentVehicle.registration+' '+currentVehicle.make+' '+currentVehicle.model, getCurrentUser().name, 'normal');
+  // Stage 8 (Legal & Docs) = job complete: if mechanic completed repairs, notify valeters
+  // Stage 4 mechanic job complete: open handover to pass to valeting
+  if (sid === 8) {
+    // Notify checklist person and valeters that mechanic work is done
+    const notifyList = [...AC_STAFF.filter(s=>s.dept==='Valeting'), ...AC_STAFF.filter(s=>s.dept==='Management')];
+    notifyList.forEach(function(sp) {
+      sendNotification('handover', {
+        toName: sp.name,
+        reg: currentVehicle.registration,
+        vehicle: currentVehicle.make+' '+currentVehicle.model,
+        stage: 'Mechanical Complete',
+        fromName: getCurrentUser().name,
+        note: 'Mechanical work complete — vehicle ready to be washed and valeted.',
+        priority: 'Normal',
+        link: 'https://www.capeye.co.uk/workflow.html?stock='+currentVehicle.stockNo,
+      });
+    });
+    showToast('Mechanical complete — Valeters notified ✓', 'success');
+  } else {
+    showToast('Stage '+sid+' marked complete ✓', 'success');
+  }
+  if (currentStageIdx < AC_WORKFLOW_STAGES.length-1) { currentStageIdx++; loadVehicle(currentVehicle.stockNo); }
+  renderPipeline(); buildKPIs(); buildDeptStrip();
+}
+
+function notifySalesTeam() {
+  if (!currentVehicle) return;
+  const stage = AC_WORKFLOW_STAGES[currentStageIdx];
+  const wf = getWorkflow(currentVehicle.stockNo);
+  const sid = stage.id;
+  wf[sid] = {...wf[sid],...collectForm(),completed:true,completedAt:new Date().toISOString(),completedBy:getCurrentUser().name};
+  saveWorkflow(currentVehicle.stockNo, wf);
+  // Notify all sales staff
+  const salesPeople = AC_STAFF.filter(s=>s.dept==='Sales'||s.dept==='Management');
+  salesPeople.forEach(function(sp) {
+    sendNotification('handover', {
+      toName: sp.name,
+      reg: currentVehicle.registration,
+      vehicle: currentVehicle.make+' '+currentVehicle.model,
+      stage: 'Advertising Complete',
+      fromName: getCurrentUser().name,
+      note: 'Photos and advertising complete. Vehicle ready for Legal & Docs.',
+      priority: 'Normal',
+      link: 'https://www.capeye.co.uk/workflow.html?stock='+currentVehicle.stockNo,
+    });
+  });
+  writeAuditLog('handover', currentVehicle.registration, 'Advertising complete — Sales notified', currentVehicle.registration+' '+currentVehicle.make+' '+currentVehicle.model+' — photos done, ready for docs', getCurrentUser().name, 'normal');
+  showToast('Sales team notified — vehicle ready for Legal & Docs ✓', 'success');
+  if (currentStageIdx < AC_WORKFLOW_STAGES.length-1) { currentStageIdx++; loadVehicle(currentVehicle.stockNo); }
+  renderPipeline(); buildKPIs(); buildDeptStrip();
+}
+
+function renderStageDots(done) {
+  document.getElementById('stageLabels').innerHTML = AC_WORKFLOW_STAGES.map(s=>
+    `<div class="stage-label">${s.name}</div>`).join('');
+  document.getElementById('stageDots').innerHTML = AC_WORKFLOW_STAGES.map((s,i)=>{
+    const isDone = done.includes(i+1), isCurrent = i===currentStageIdx;
+    return `<div class="stage-dot ${isDone?'completed':''} ${isCurrent&&!isDone?'current':''}"
+      style="background:${isDone?s.color:isCurrent?s.color:'var(--border)'};"
+      title="Stage ${i+1}: ${s.name}" onclick="jumpToStage(${i})"></div>`;
+  }).join('');
+}
+
+function jumpToStage(idx) { currentStageIdx=idx; const wf=getWorkflow(currentVehicle.stockNo); renderStageDots(Object.keys(wf).map(Number).filter(n=>wf[n]&&wf[n].completed)); showStageForm(idx); }
+function prevStage(){ if(currentStageIdx>0){currentStageIdx--;jumpToStage(currentStageIdx);} }
+function nextStage(){ if(currentStageIdx<AC_WORKFLOW_STAGES.length-1){currentStageIdx++;jumpToStage(currentStageIdx);} }
+
+/* ── SHOW STAGE FORM ── */
+function showStageForm(idx) {
+  const stage = AC_WORKFLOW_STAGES[idx];
+  document.getElementById('stageForm').style.display = 'block';
+  document.getElementById('formStageNum').textContent = 'STAGE '+(idx+1)+' OF '+AC_WORKFLOW_STAGES.length+' — '+stage.dept.toUpperCase();
+  document.getElementById('formStageName').textContent = stage.name+(stage.optional?' (Optional)':'');
+  const wf   = getWorkflow(currentVehicle.stockNo);
+  const data = wf[stage.id]||{};
+  document.getElementById('stageFormBody').innerHTML = buildForm(stage, data);
+  initPhotoSlots();
+  loadSavedPhotos(data);
+  // Handover banner
+  const ho  = getHandover(currentVehicle.stockNo, stage.id);
+  const area = document.getElementById('handoverBannerArea');
+  if (ho && data.completed) {
+    area.innerHTML = `<div class="handover-banner"><i class="fas fa-check-circle"></i>
+      <span><strong>Stage complete</strong> · Handed to <strong>${ho.toName}</strong>
+      ${ho.note?`· <em>${ho.note}</em>`:''}</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--ink3)">${new Date(ho.ts).toLocaleString('en-GB')}</span>
+    </div>`;
+  } else { area.innerHTML=''; }
+
+  // Update complete button based on stage — runs AFTER form is built
+  const stageId = stage.id;
+  const jobCompleteStages = [8,9,10,11,12];
+  const notifySalesStage = 7;
+  const completeBtn = document.querySelector('.complete-stage-btn');
+  if (completeBtn) {
+    if (jobCompleteStages.includes(stageId)) {
+      completeBtn.innerHTML = '<i class="fas fa-check-circle"></i> Mark Job Complete';
+      completeBtn.onclick = function(){ completeJobOnly(); };
+      completeBtn.className = 'btn btn-green complete-stage-btn';
+    } else if (stageId === notifySalesStage) {
+      completeBtn.innerHTML = '<i class="fas fa-bell"></i> Photos Done — Notify Sales';
+      completeBtn.onclick = function(){ notifySalesTeam(); };
+      completeBtn.className = 'btn btn-amber complete-stage-btn';
+    } else {
+      completeBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Complete Stage & Handover';
+      completeBtn.onclick = function(){ openHandoverModal(); };
+      completeBtn.className = 'btn btn-green complete-stage-btn';
+    }
+  }
+}
+
+/* ── FORM BUILDER ── */
+function buildForm(stage, ex) {
+  const v = k => ex[k]||'';
+  const ck = k => ex[k]?'checked':'';
+  const staffOpts = AC_STAFF.map(s=>`<option value="${s.name}" ${v('f_assignedTo')===s.name?'selected':''}>${s.name} (${s.role})</option>`).join('');
+  let f = '<div class="form-grid">';
+
+  if (stage.id===1) { // INTAKE
+    const todayDate = new Date().toISOString().split('T')[0];
+    const nowTime = new Date().toTimeString().slice(0,5);
+    const intakeStaff = AC_STAFF.filter(s=>s.dept==='Bodyshop'||s.dept==='Management'||(s.name==='Abu Amar'));
+    f+=`
+    <div class="form-field full" style="grid-column:1/-1">
+      <div style="background:linear-gradient(135deg,#001a4d,#003DA5);border-radius:10px;padding:14px 18px;color:#fff;margin-bottom:4px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;opacity:.6;margin-bottom:6px">Vehicle Arrival</div>
+        <div style="font-size:13px;font-weight:600;opacity:.9">Complete this section when the vehicle physically arrives on site</div>
+      </div>
+    </div>
+    <div class="form-field"><div class="form-label">Date Arrived</div><input class="form-control" type="date" id="f_dateIn" value="${v('f_dateIn')||todayDate}"></div>
+    <div class="form-field"><div class="form-label">Time Arrived</div><input class="form-control" type="time" id="f_timeIn" value="${v('f_timeIn')||nowTime}"></div>
+    <div class="form-field"><div class="form-label">Received By</div><select class="form-control" id="f_receivedBy">${intakeStaff.map(s=>`<option ${v('f_receivedBy')===s.name?'selected':''}>${s.name}</option>`).join('')}</select></div>
+    <div class="form-field"><div class="form-label">Arrived From</div><input class="form-control" type="text" id="f_arrivedFrom" value="${v('f_arrivedFrom')}" placeholder="e.g. Auction, Private, Part Exchange..."></div>
+    <div class="form-field full"><div class="form-label">Condition on Arrival</div><textarea class="form-control" id="f_notes" rows="3" placeholder="General condition, mileage check, any issues noticed on arrival, fuel level...">${v('f_notes')}</textarea></div>
+    <div class="form-field"><div class="form-label">Keys Received</div><select class="form-control" id="f_keysReceived"><option value="1" ${v('f_keysReceived')==='1'?'selected':''}>1 Key</option><option value="2" ${v('f_keysReceived')==='2'?'selected':''}>2 Keys</option><option value="0" ${v('f_keysReceived')==='0'?'selected':''}>No Keys</option></select></div>
+    <div class="form-field"><div class="form-label">V5 Present?</div><select class="form-control" id="f_v5"><option value="yes" ${v('f_v5')==='yes'?'selected':''}>Yes</option><option value="no" ${v('f_v5')==='no'?'selected':''}>No</option><option value="applied" ${v('f_v5')==='applied'?'selected':''}>Applied For</option></select></div>
+    <div class="form-field full"><div class="form-label">Arrival Photo</div>
+      <div class="photo-grid" style="grid-template-columns:repeat(2,1fr);max-width:280px">
+        <div class="photo-slot" id="slot_s1_arrival">
+          <input type="file" id="s1_arrival" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder"><i class="fas fa-camera" style="color:var(--navy)"></i><span>Arrival</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="form-field full"><div class="form-label">Vehicle Photos (6-sided)</div>
+    <div class="form-field full"><div class="form-label">Vehicle Photos (tap to capture or upload)</div><div class="photo-grid"><div class="photo-slot" id="slot_s1_front">
+          <input type="file" id="s1_front" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--navy)"></i>
+            <span>Front</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s1_rear">
+          <input type="file" id="s1_rear" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--navy)"></i>
+            <span>Rear</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s1_offside">
+          <input type="file" id="s1_offside" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--navy)"></i>
+            <span>Offside</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s1_nearside">
+          <input type="file" id="s1_nearside" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--navy)"></i>
+            <span>Nearside</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s1_interior">
+          <input type="file" id="s1_interior" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--navy)"></i>
+            <span>Interior</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s1_dash">
+          <input type="file" id="s1_dash" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--navy)"></i>
+            <span>Dashboard</span>
+          </div>
+        </div></div></div>
+    <div class="form-field"><div class="form-label">Dent Repair Required?</div><select class="form-control" id="f_dentRepair"><option value="no">No</option><option value="yes">Yes — assign to Jay (Dentmaster)</option></select></div>`;
+
+  } else if (stage.id===2) { // BODYWORK
+    f+=`<div class="form-field full"><div class="form-label">Imperfections Found</div><textarea class="form-control" id="f_imperfections" rows="3" placeholder="Describe all bodywork issues, dents, scratches...">${v('f_imperfections')}</textarea></div>
+    <div class="form-field"><div class="form-label">Predicted Repair Cost (£)</div><input class="form-control" type="number" id="f_repairCost" placeholder="e.g. 450" value="${v('f_repairCost')}"></div>
+    <div class="form-field"><div class="form-label">Assigned To</div><select class="form-control" id="f_assignedTo">${AC_STAFF.filter(s=>s.dept==='Bodyshop'||s.dept==='Intake').map(s=>`<option>${s.name}</option>`).join('')}</select></div>
+    <div class="form-field full"><div class="form-label">Imperfection Photos (tap to capture or upload)</div><div class="photo-grid"><div class="photo-slot" id="slot_s2_p1">
+          <input type="file" id="s2_p1" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--amber)"></i>
+            <span>Photo 1</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s2_p2">
+          <input type="file" id="s2_p2" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--amber)"></i>
+            <span>Photo 2</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s2_p3">
+          <input type="file" id="s2_p3" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--amber)"></i>
+            <span>Photo 3</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s2_p4">
+          <input type="file" id="s2_p4" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--amber)"></i>
+            <span>Photo 4</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s2_p5">
+          <input type="file" id="s2_p5" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--amber)"></i>
+            <span>Photo 5</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s2_p6">
+          <input type="file" id="s2_p6" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:var(--amber)"></i>
+            <span>Photo 6</span>
+          </div>
+        </div></div></div>`;
+
+  } else if (stage.id===3) { // DENT REPAIR
+    f+=`<div class="form-field full"><div class="form-label" style="color:var(--amber)"><i class="fas fa-circle-info"></i> Optional stage — only required when triggered from Bodywork</div></div>
+    <div class="form-field full"><div class="form-label">Dents Identified</div><textarea class="form-control" id="f_dents" rows="3" placeholder="Describe each dent location and size...">${v('f_dents')}</textarea></div>
+    <div class="form-field"><div class="form-label">PDR Viable?</div><select class="form-control" id="f_pdr"><option>Yes — PDR viable</option><option>No — conventional repair needed</option><option>Partial</option></select></div>
+    <div class="form-field"><div class="form-label">Cost (£)</div><input class="form-control" type="number" id="f_dentCost" value="${v('f_dentCost')}" placeholder="e.g. 180"></div>`;
+
+  } else if (stage.id===4) { // MECHANICAL — AA CHECKLIST
+    // ── JOB CARD ──
+    const mechJobCard = ex.f_jobCard ? JSON.parse(ex.f_jobCard) : {};
+    const jobItems = ['Service','Oil & Filter Change','Tyre Replacement','Brake Pads / Discs','MOT Preparation','DPF Clean','Fault Code Diagnosis','Battery Replacement','Clutch','Gearbox','Suspension','Exhaust','Cooling System','Air Con Regas','Bodywork Repair','Electrical','Other (see notes)'];
+    f += `<div class="form-field full" style="grid-column:1/-1">
+      <div style="background:#001a4d;border-radius:10px;padding:16px 18px;margin-bottom:4px">
+        <div style="font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#aabbcc;margin-bottom:10px">📋 Mechanic Job Card — ${currentVehicle.registration}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px">
+          ${jobItems.map(job => {
+            const jk = 'jc_'+job.replace(/[^a-z0-9]/gi,'_');
+            return '<label style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.07);border-radius:6px;padding:7px 10px;cursor:pointer;color:#fff;font-size:12px;font-weight:500"><input type="checkbox" id="'+jk+'" '+(ex[jk]?'checked':'')+' style="width:14px;height:14px;accent-color:#C8102E"> '+job+'</label>';
+          }).join('')}
+        </div>
+        <div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:#aabbcc;margin-bottom:4px">PARTS STATUS</div>
+          <div style="display:flex;gap:8px">
+            <label style="display:flex;align-items:center;gap:6px;color:#fff;font-size:12px"><input type="radio" name="partsStatus" id="ps_available" value="available" ${(ex.f_partsStatus||'')==='available'?'checked':''} style="accent-color:#10b981"> Parts Available</label>
+            <label style="display:flex;align-items:center;gap:6px;color:#fff;font-size:12px"><input type="radio" name="partsStatus" id="ps_ordered" value="ordered" ${(ex.f_partsStatus||'')==='ordered'?'checked':''} style="accent-color:#f59e0b"> Parts On Order</label>
+            <label style="display:flex;align-items:center;gap:6px;color:#fff;font-size:12px"><input type="radio" name="partsStatus" id="ps_waiting" value="waiting" ${(ex.f_partsStatus||'')==='waiting'?'checked':''} style="accent-color:#C8102E"> Waiting for Parts</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="form-field"><div class="form-label">Assigned Mechanic</div><select class="form-control" id="f_mechanic">${AC_STAFF.filter(s=>s.dept==='Workshop').map(s=>`<option ${v('f_mechanic')===s.name?'selected':''}>${s.name}</option>`).join('')}</select></div>
+    <div class="form-field"><div class="form-label">Estimated Cost (£)</div><input class="form-control" type="number" id="f_cost" value="${v('f_cost')}"></div>
+    <div class="form-field"><div class="form-label">Door / Tailgate Style</div><input class="form-control" type="text" id="f_doorStyle" value="${v('f_doorStyle')}" placeholder="e.g. Twin Rear Doors, Sliding Side + Tailgate..."></div>
+    <div class="form-field"><div class="form-label">Windscreen</div><select class="form-control" id="f_windscreen"><option value="ok" ${v('f_windscreen')==='ok'?'selected':''}>✓ No Issues</option><option value="chip" ${v('f_windscreen')==='chip'?'selected':''}>⚠ Chip — Monitor</option><option value="crack" ${v('f_windscreen')==='crack'?'selected':''}>✗ Crack — Replace</option><option value="replaced" ${v('f_windscreen')==='replaced'?'selected':''}>Replaced</option></select></div>
+    <div class="form-field full"><div class="form-label">Tyre Tread Depth (mm)</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:4px">
+        ${[['f_tyreFR','Front Right'],['f_tyreFL','Front Left'],['f_tyreRR','Rear Right'],['f_tyreRL','Rear Left'],['f_tyreSpare','Spare']].map(([id,label])=>
+          '<div style="text-align:center"><div style="font-size:10px;font-weight:700;color:var(--ink3);margin-bottom:4px">'+label+'</div><input class="form-control" type="number" id="'+id+'" value="'+(ex[id]||'')+'" placeholder="mm" min="0" max="10" step="0.5" style="text-align:center;font-size:16px;font-weight:700"></div>'
+        ).join('')}
+      </div>
+    </div>
+    <div class="form-field full"><div class="form-label">Fault Codes</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start">
+        <textarea class="form-control" id="f_faultCodes" rows="2" placeholder="List any fault codes found e.g. P0401, U0100...">${v('f_faultCodes')}</textarea>
+        <div class="photo-slot" style="width:80px;height:70px;min-height:unset;border-radius:8px" id="slot_s4_fault">
+          <input type="file" id="s4_fault" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove">×</button>
+          <div class="photo-placeholder"><i class="fas fa-camera" style="color:var(--red);font-size:16px"></i><span style="font-size:9px">Scan</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="form-field full"><div class="form-label">MOT Advisory Items</div><textarea class="form-control" id="f_motAdvisory" rows="2" placeholder="List any MOT advisories...">${v('f_motAdvisory')}</textarea></div>
+    <div class="form-field full"><div class="form-label">Parts Required</div><textarea class="form-control" id="f_parts" rows="2" placeholder="List all parts needed with part numbers if known...">${v('f_parts')}</textarea></div>
+    <div class="form-field full"><div class="form-label">Overall Workshop Notes</div><textarea class="form-control" id="f_notes" rows="2">${v('f_notes')}</textarea></div>
+    </div>`;
+    // ── AA CHECKLIST with per-section notes ──
+    f += '<div style="margin-top:4px">';
+    Object.entries(AA_INSPECTION_CHECKLIST).forEach(([section, items]) => {
+      const secKey = 'sec_notes_'+section.replace(/[^a-z0-9]/gi,'_');
+      f += `<div class="checklist-section"><div class="cs-title">${section}</div>`;
+      items.forEach(item => {
+        const key = 'ci_'+item.replace(/[^a-z0-9]/gi,'_');
+        const val = ex[key]||'';
+        f += `<div class="ci-row"><span class="ci-label">${item}</span><div class="ci-btns">
+          <button class="ci-btn g${val==='g'?' active':''}" onclick="setCi(this,'g','${key}')">✓</button>
+          <button class="ci-btn a${val==='a'?' active':''}" onclick="setCi(this,'a','${key}')">⚠</button>
+          <button class="ci-btn r${val==='r'?' active':''}" onclick="setCi(this,'r','${key}')">✗</button>
+        </div></div>`;
+      });
+      f += `<div style="padding:8px 0 4px"><textarea class="form-control" id="${secKey}" rows="2" placeholder="Notes for ${section}..." style="font-size:12px">${ex[secKey]||''}</textarea></div>`;
+      f += '</div>';
+    });
+    f += '</div><div class="form-grid">';
+
+  } else if (stage.id===5) { // EXTERNAL WORK
+    f+=`<div class="form-field"><div class="form-label">External Supplier</div><input class="form-control" type="text" id="f_supplier" value="${v('f_supplier')}" placeholder="e.g. BPS Motors, BMW Main Dealer..."></div>
+    <div class="form-field"><div class="form-label">Reason for External Work</div><input class="form-control" type="text" id="f_extReason" value="${v('f_extReason')}" placeholder="e.g. DPF clean, gearbox repair..."></div>
+    <div class="form-field"><div class="form-label">Predicted Return Date</div><input class="form-control" type="date" id="f_returnPred" value="${v('f_returnPred')}"></div>
+    <div class="form-field"><div class="form-label">Confirmed Return Date</div><input class="form-control" type="date" id="f_returnConf" value="${v('f_returnConf')}"></div>
+    <div class="form-field full"><div class="form-label">Notes</div><textarea class="form-control" id="f_notes" rows="2">${v('f_notes')}</textarea></div>
+    <div class="form-field full"><div style="padding:10px;background:#fff3cd;border-radius:8px;font-size:12px;color:#856404"><i class="fas fa-info-circle"></i> <strong>Keith Hardy authorisation required</strong> for all off-site movements.</div></div>`;
+
+  } else if (stage.id===6) { // VALETING
+    f+=`<div class="form-field"><div class="form-label">Assigned Valeter</div><select class="form-control" id="f_valeter">${AC_STAFF.filter(s=>s.dept==='Valeting').map(s=>`<option ${v('f_valeter')===s.name?'selected':''}>${s.name}</option>`).join('')}</select></div>
+    <div class="form-field"><div class="form-label">All Valeting Complete?</div><select class="form-control" id="f_valetDone"><option value="no">In Progress</option><option value="yes">Yes — Complete</option></select></div>
+    <div class="form-field full"><div class="form-label">Before Photos (tap to capture or upload)</div><div class="photo-grid"><div class="photo-slot" id="slot_s6_b1">
+          <input type="file" id="s6_b1" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#f59e0b"></i>
+            <span>Before 1</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_b2">
+          <input type="file" id="s6_b2" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#f59e0b"></i>
+            <span>Before 2</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_b3">
+          <input type="file" id="s6_b3" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#f59e0b"></i>
+            <span>Before 3</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_b4">
+          <input type="file" id="s6_b4" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#f59e0b"></i>
+            <span>Before 4</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_b5">
+          <input type="file" id="s6_b5" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#f59e0b"></i>
+            <span>Before 5</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_b6">
+          <input type="file" id="s6_b6" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#f59e0b"></i>
+            <span>Before 6</span>
+          </div>
+        </div></div></div>
+    <div class="form-field full"><div class="form-label">After Photos (tap to capture or upload)</div><div class="photo-grid"><div class="photo-slot" id="slot_s6_a1">
+          <input type="file" id="s6_a1" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#10b981"></i>
+            <span>After 1</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_a2">
+          <input type="file" id="s6_a2" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#10b981"></i>
+            <span>After 2</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_a3">
+          <input type="file" id="s6_a3" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#10b981"></i>
+            <span>After 3</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_a4">
+          <input type="file" id="s6_a4" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#10b981"></i>
+            <span>After 4</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_a5">
+          <input type="file" id="s6_a5" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#10b981"></i>
+            <span>After 5</span>
+          </div>
+        </div>
+<div class="photo-slot" id="slot_s6_a6">
+          <input type="file" id="s6_a6" accept="image/*" capture="environment">
+          <img class="photo-preview" src="" alt="">
+          <button class="photo-clear" title="Remove photo">×</button>
+          <div class="photo-placeholder">
+            <i class="fas fa-camera" style="color:#10b981"></i>
+            <span>After 6</span>
+          </div>
+        </div></div></div>`;
+
+  } else if (stage.id===7) { // ADVERTISING
+    f+=`<div class="form-field"><div class="form-label">Assigned To (Mustafa)</div><select class="form-control" id="f_assignedTo">${AC_STAFF.filter(s=>s.dept==='Advertising').map(s=>`<option>${s.name}</option>`).join('')}</select></div>
+    <div class="form-field"><div class="form-label">Ismael Confirmed Live Online?</div><select class="form-control" id="f_confirmedLive"><option value="no">Pending</option><option value="yes">✓ Confirmed Live</option></select></div>
+    <div class="form-field full"><div class="form-label">Advertising Checklist</div>
+    ${[['f_turntable','Turntable Video ✓'],['f_walkaround','Walk-around Video ✓'],['f_images','Images ✓'],['f_touchups','Touch-ups ✓']].map(([id,label])=>`
+      <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer">
+        <input type="checkbox" id="${id}" ${ck(id)} style="width:16px;height:16px;accent-color:var(--red)">
+        <span style="font-size:13px;font-weight:500">${label}</span>
+      </label>`).join('')}
+    </div>`;
+
+  } else if (stage.id===8) { // LEGAL & DOCS
+    f+=`<div class="form-field full"><div class="form-label">Documents Checklist</div>
+    ${[['doc_v5','V5 Logbook'],['doc_sh','Service History'],['doc_key','Spare Key'],['doc_mot','MOT Certificate'],['doc_hpi','HPI Clear'],['doc_adv','Advertised']].map(([id,label])=>`
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer">
+        <input type="checkbox" id="${id}" ${ck(id)} style="width:16px;height:16px;accent-color:var(--green)">
+        <span style="font-size:13px;font-weight:500">${label}</span>
+      </label>`).join('')}
+    </div>
+    <div class="form-field full"><div class="form-label">Notes</div><textarea class="form-control" id="f_notes" rows="2">${v('f_notes')}</textarea></div>`;
+
+  } else if (stage.id===9) { // TEST DRIVE
+    f+=`<div class="form-field"><div class="form-label">Customer Name</div><input class="form-control" type="text" id="f_customerName" value="${v('f_customerName')}" placeholder="Full name"></div>
+    <div class="form-field"><div class="form-label">Driving Licence Number</div><input class="form-control" type="text" id="f_licenceNo" value="${v('f_licenceNo')}" placeholder="e.g. SMITH801212AB9IJ"></div>
+    <div class="form-field"><div class="form-label">Licence Expiry Date</div><input class="form-control" type="date" id="f_licenceExpiry" value="${v('f_licenceExpiry')}"></div>
+    <div class="form-field"><div class="form-label">Sales Person</div><select class="form-control" id="f_salesPerson">${AC_STAFF.filter(s=>s.dept==='Sales').map(s=>`<option>${s.name}</option>`).join('')}</select></div>
+    <div class="form-field full"><div class="form-label">Notes / Outcome</div><textarea class="form-control" id="f_notes" rows="2" placeholder="Customer feedback, outcome...">${v('f_notes')}</textarea></div>`;
+
+  } else if (stage.id===10) { // READY FOR SALE
+    f+=`<div class="form-field full"><div class="form-label">Ready for Sale Confirmation</div>
+    ${[['rfs_price','Retail price confirmed'],['rfs_docs','All documents in order'],['rfs_clean','Vehicle clean and presentable'],['rfs_keys','Keys on board'],['rfs_adv','Live on all platforms']].map(([id,label])=>`
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer">
+        <input type="checkbox" id="${id}" ${ck(id)} style="width:16px;height:16px;accent-color:var(--navy)">
+        <span style="font-size:13px;font-weight:500">${label}</span>
+      </label>`).join('')}
+    </div>
+    <div class="form-field"><div class="form-label">Retail Price (£)</div><input class="form-control" type="number" id="f_retailPrice" value="${v('f_retailPrice')||currentVehicle.price||''}"></div>
+    <div class="form-field"><div class="form-label">Authorised By</div><select class="form-control" id="f_authorisedBy">${AC_STAFF.filter(s=>s.dept==='Management').map(s=>`<option>${s.name}</option>`).join('')}</select></div>`;
+
+  } else if (stage.id===11) { // SOLD
+    f+=`<div class="form-field"><div class="form-label">Sale Date</div><input class="form-control" type="date" id="f_saleDate" value="${v('f_saleDate')||new Date().toISOString().split('T')[0]}"></div>
+    <div class="form-field"><div class="form-label">Sold By</div><select class="form-control" id="f_soldBy">${AC_STAFF.filter(s=>s.dept==='Sales'||s.dept==='Management').map(s=>`<option>${s.name}</option>`).join('')}</select></div>
+    <div class="form-field full"><div class="form-label">Sale Notes</div><textarea class="form-control" id="f_notes" rows="2">${v('f_notes')}</textarea></div>`;
+
+  } else {
+    f+=`<div class="form-field"><div class="form-label">Assigned To</div><select class="form-control" id="f_assignedTo"><option value="">— Select —</option>${staffOpts}</select></div>
+    <div class="form-field full"><div class="form-label">Notes</div><textarea class="form-control" id="f_notes" rows="3">${v('f_notes')}</textarea></div>`;
+  }
+  return f+'</div>';
+}
+
+function setCi(btn, state, key) {
+  const parent = btn.closest('.ci-btns');
+  parent.querySelectorAll('.ci-btn').forEach(b=>{ b.classList.remove('active'); });
+  btn.classList.add('active');
+  // store in a hidden input for collectForm
+  let hidden = document.getElementById('hidden_'+key);
+  if (!hidden) { hidden=document.createElement('input'); hidden.type='hidden'; hidden.id='hidden_'+key; hidden.name=key; btn.closest('.ci-row').appendChild(hidden); }
+  hidden.value = state;
+}
+
+/* ── COLLECT FORM DATA ── */
+function collectForm() {
+  const data = {};
+  // Also collect any dynamically added hidden inputs (e.g. setCi inputs)
+  document.querySelectorAll('#stageFormBody input[type="hidden"]').forEach(el => {
+    if (el.id && el.value) { const d={}; d[el.id]=el.value; Object.assign(window._ciCache=window._ciCache||{}, d); }
+  });
+  document.querySelectorAll('#stageFormBody [id^="f_"],[id^="doc_"],[id^="rfs_"],[id^="ci_"],[id^="hidden_"],[id^="td_"],[id^="ch_"],[id^="v_"],[id^="sec_notes_"],[id^="jc_"],[id^="ps_"]').forEach(el => {
+    if (el.type==='checkbox') data[el.id]=el.checked;
+    else if (el.tagName==='SELECT'&&el.multiple) data[el.id]=[...el.selectedOptions].map(o=>o.value);
+    else data[el.id]=el.value;
+  });
+  return data;
+}
+
+/* ── SAVE DRAFT ── */
+function saveDraft() {
+  if (!currentVehicle) return;
+  const wf = getWorkflow(currentVehicle.stockNo);
+  const id = AC_WORKFLOW_STAGES[currentStageIdx].id;
+  wf[id] = {...wf[id],...collectForm(),completed:false};
+  saveWorkflow(currentVehicle.stockNo, wf);
+  showToast('Draft saved','success');
+}
+
+/* ── HANDOVER MODAL ── */
+function openHandoverModal() {
+  if (!currentVehicle) { showToast('Select a vehicle first','error'); return; }
+  const stage = AC_WORKFLOW_STAGES[currentStageIdx];
+  const nextStage = AC_WORKFLOW_STAGES[currentStageIdx+1];
+  // Vehicle strip
+  document.getElementById('hoVehicleStrip').innerHTML =
+    `<div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;background:#f5c518;color:#000;padding:2px 10px;border-radius:4px">${currentVehicle.registration}</span>
+      <div><div style="font-weight:700;font-size:13px">${currentVehicle.make} ${currentVehicle.model}</div>
+      <div style="font-size:11px;color:var(--ink3)">${stage.name} → ${nextStage?nextStage.name:'Final Stage'}</div></div>
+    </div>`;
+  // Populate handover target — restricted by stage
+  const hoSel = document.getElementById('hoTarget');
+  hoSel.innerHTML = '<option value="">— Select person —</option>';
+  const sid4 = AC_WORKFLOW_STAGES[currentStageIdx].id;
+  let allowedStaff = [];
+  const mgmt = AC_STAFF.filter(s=>s.dept==='Management');
+  const mechanics = AC_STAFF.filter(s=>s.dept==='Workshop'||s.dept==='Checklist');
+  const valeters = AC_STAFF.filter(s=>s.dept==='Valeting');
+  const advertisers = AC_STAFF.filter(s=>s.dept==='Advertising');
+  const sales = AC_STAFF.filter(s=>s.dept==='Sales');
+  const bodyshop = AC_STAFF.filter(s=>s.dept==='Bodyshop');
+  if (sid4===1||sid4===2||sid4===3) { allowedStaff=[...mechanics,...mgmt]; }
+  else if (sid4===4||sid4===5) { allowedStaff=[...mechanics,...mgmt]; }
+  else if (sid4===6) { allowedStaff=[...advertisers,...mgmt]; }
+  else if (sid4===7) { allowedStaff=[...sales,...mgmt]; }
+  else { allowedStaff=[...AC_STAFF]; }
+  allowedStaff.forEach(s => {
+    const o=document.createElement('option');
+    o.value=s.name;
+    o.textContent=s.name+' — '+s.role;
+    hoSel.appendChild(o);
+  });
+  // History
+  const wf = getWorkflow(currentVehicle.stockNo);
+  const done = Object.keys(wf).map(Number).filter(n=>wf[n]&&wf[n].completed).sort((a,b)=>a-b);
+  document.getElementById('hoHistorySummary').innerHTML = done.length ?
+    '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);margin-bottom:6px">Previous Stages</div>'+
+    done.map(sid=>{
+      const s=AC_WORKFLOW_STAGES.find(x=>x.id===sid); const ho=getHandover(currentVehicle.stockNo,sid);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px">
+        <span style="background:${s?.color||'#888'}22;color:${s?.color||'#888'};font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px">S${sid}</span>
+        <span style="font-weight:600">${s?.name||'Stage '+sid}</span>
+        ${ho?`<span style="color:var(--ink3)">→ ${ho.toName}</span>`:''}
+        <span style="margin-left:auto;color:var(--ink3);font-size:10px">${ho?new Date(ho.ts).toLocaleDateString('en-GB'):''}</span>
+      </div>`;
+    }).join('') : '<div style="font-size:12px;color:var(--ink3);font-style:italic">No previous stages completed.</div>';
+  document.getElementById('handoverModal').classList.add('open');
+}
+
+
+// ── LOCAL AUDIT LOG (for audit.html) ─────────────────────────────
+function writeAuditLog(type, reg, title, desc, staff, priority) {
+  try {
+    var key = 'ac_audit_log';
+    var log = JSON.parse(localStorage.getItem(key) || '[]');
+    log.unshift({
+      type: type,
+      ts: Date.now(),
+      reg: reg || '',
+      title: title || '',
+      desc: desc || '',
+      staff: staff || getCurrentUser().name,
+      priority: priority || 'normal',
+    });
+    // Keep last 200 entries
+    localStorage.setItem(key, JSON.stringify(log.slice(0, 200)));
+  } catch(e) {}
+}
+function confirmHandover() {
+  const toName = document.getElementById('hoTarget').value;
+  const priority = document.getElementById('hoPriority').value;
+  const note = document.getElementById('hoNote').value.trim();
+  if (!toName) { showToast('Select who to hand over to','error'); return; }
+  const stage = AC_WORKFLOW_STAGES[currentStageIdx];
+  const wf = getWorkflow(currentVehicle.stockNo);
+  const sid = stage.id;
+  wf[sid] = {...wf[sid],...collectForm(),completed:true,completedAt:new Date().toISOString()};
+  if (sid < AC_WORKFLOW_STAGES.length) { if(!wf[sid+1])wf[sid+1]={}; wf[sid+1].startedAt=new Date().toISOString(); }
+  saveWorkflow(currentVehicle.stockNo, wf);
+  saveHandover(currentVehicle.stockNo, sid, {toName, priority, note, fromStage:stage.name});
+  logWorkflowEvent(currentVehicle.registration, 'HANDOVER', `Stage ${stage.name} complete → ${toName}. ${note}`, getCurrentUser().name);
+  writeAuditLog('handover', currentVehicle.registration, `Stage ${stage.name} complete → ${toName}`, `${currentVehicle.registration} ${currentVehicle.make} ${currentVehicle.model} · Note: ${note}`, getCurrentUser().name, priority.toLowerCase());
+  // Send notification to recipient
+  sendNotification('handover', {
+    toName:   toName,
+    reg:      currentVehicle.registration,
+    vehicle:  currentVehicle.make + ' ' + currentVehicle.model,
+    stage:    stage.name,
+    fromName: getCurrentUser().name,
+    note:     note,
+    priority: priority,
+    link:     'https://www.capeye.co.uk/workflow.html?stock=' + currentVehicle.stockNo,
+  });
+  closeModal('handoverModal');
+  showToast('Stage '+sid+' complete · Handed to '+toName, 'success');
+  if (currentStageIdx < AC_WORKFLOW_STAGES.length-1) { currentStageIdx++; loadVehicle(currentVehicle.stockNo); }
+  renderPipeline(); buildKPIs(); buildDeptStrip();
+}
+
+/* ── SKIP / SEND BACK ── */
+function toggleUrgent() {
+  if (!currentVehicle) return;
+  currentVehicle.urgent = !currentVehicle.urgent;
+  logWorkflowEvent(currentVehicle.registration, 'URGENT_TOGGLE', 'Urgent: '+currentVehicle.urgent, getCurrentUser().name);
+  if (currentVehicle.urgent) { writeAuditLog('urgent', currentVehicle.registration, 'Marked URGENT', `${currentVehicle.registration} ${currentVehicle.make} ${currentVehicle.model} flagged as urgent`, getCurrentUser().name, 'urgent'); }
+  if (currentVehicle.urgent) {
+    sendNotification('urgent', {
+      toName:   currentVehicle.workflowStage ? (AC_WORKFLOW_STAGES.find(s=>s.name===currentVehicle.workflowStage)||{}).assignedTo || 'Management' : 'Management',
+      reg:      currentVehicle.registration,
+      vehicle:  currentVehicle.make + ' ' + currentVehicle.model,
+      stage:    currentVehicle.workflowStage || '—',
+      fromName: getCurrentUser().name,
+      note:     'Vehicle marked as URGENT — please prioritise',
+      priority: 'Urgent',
+      link:     'https://www.capeye.co.uk/workflow.html?stock=' + currentVehicle.stockNo,
+    });
+  }
+  document.getElementById('urgentBtn').innerHTML = currentVehicle.urgent ? '<i class="fas fa-fire"></i> Remove Urgent' : '<i class="fas fa-fire"></i> Mark Urgent';
+  showToast(currentVehicle.registration+(currentVehicle.urgent?' marked URGENT':' urgent removed'), 'warning');
+}
+
+function openSkipModal() {
+  if (!currentVehicle) return;
+  const skipSel = document.getElementById('skipTarget');
+  skipSel.innerHTML = '';
+  AC_WORKFLOW_STAGES.slice(currentStageIdx+2).forEach(s => {
+    const o=document.createElement('option'); o.value=s.id; o.textContent='Stage '+s.id+': '+s.name; skipSel.appendChild(o);
+  });
+  document.getElementById('skipReason').value='';
+  document.getElementById('skipModal').classList.add('open');
+}
+
+function confirmSkip() {
+  const targetId = parseInt(document.getElementById('skipTarget').value);
+  const reason = document.getElementById('skipReason').value.trim();
+  if (!reason) { showToast('Reason is required to skip a stage','error'); return; }
+  const targetIdx = AC_WORKFLOW_STAGES.findIndex(s=>s.id===targetId);
+  const wf = getWorkflow(currentVehicle.stockNo);
+  // Mark all skipped stages
+  for (let i=currentStageIdx+1; i<targetIdx; i++) {
+    wf[AC_WORKFLOW_STAGES[i].id] = {completed:true,skipped:true,completedAt:new Date().toISOString(),skipReason:reason};
+  }
+  saveWorkflow(currentVehicle.stockNo, wf);
+  logWorkflowEvent(currentVehicle.registration, 'STAGE_SKIP', `Skipped to ${AC_WORKFLOW_STAGES[targetIdx].name}. Reason: ${reason}`, getCurrentUser().name);
+  writeAuditLog('skip', currentVehicle.registration, `Stage skipped → ${AC_WORKFLOW_STAGES[targetIdx].name}`, `${currentVehicle.registration} ${currentVehicle.make} ${currentVehicle.model} · Reason: ${reason}`, getCurrentUser().name, 'normal');
+  sendNotification('skip', {
+    toName:   AC_WORKFLOW_STAGES[targetIdx].assignedTo || 'Management',
+    reg:      currentVehicle.registration,
+    vehicle:  currentVehicle.make + ' ' + currentVehicle.model,
+    stage:    AC_WORKFLOW_STAGES[targetIdx].name,
+    fromName: getCurrentUser().name,
+    note:     'Stage skipped. Reason: ' + reason,
+    priority: 'Normal',
+    link:     'https://www.capeye.co.uk/workflow.html?stock=' + currentVehicle.stockNo,
+  });
+  closeModal('skipModal');
+  showToast('Skipped to '+AC_WORKFLOW_STAGES[targetIdx].name+' — logged in audit','warning');
+  currentStageIdx = targetIdx;
+  loadVehicle(currentVehicle.stockNo);
+}
+
+function openSendBackModal() {
+  if (!currentVehicle) return;
+  const sbSel = document.getElementById('sendBackTarget');
+  sbSel.innerHTML = '';
+  AC_WORKFLOW_STAGES.slice(0, currentStageIdx).forEach(s => {
+    const o=document.createElement('option'); o.value=s.id; o.textContent='Stage '+s.id+': '+s.name; sbSel.appendChild(o);
+  });
+  document.getElementById('sendBackReason').value='';
+  document.getElementById('sendBackModal').classList.add('open');
+}
+
+function confirmSendBack() {
+  const targetId = parseInt(document.getElementById('sendBackTarget').value);
+  const reason = document.getElementById('sendBackReason').value.trim();
+  if (!reason) { showToast('Reason is required to send back','error'); return; }
+  const targetIdx = AC_WORKFLOW_STAGES.findIndex(s=>s.id===targetId);
+  const wf = getWorkflow(currentVehicle.stockNo);
+  // Un-complete the stages being sent back through
+  for (let i=targetIdx; i<=currentStageIdx; i++) {
+    if (wf[AC_WORKFLOW_STAGES[i].id]) wf[AC_WORKFLOW_STAGES[i].id].completed = false;
+  }
+  wf[targetId] = {...(wf[targetId]||{}), completed:false, startedAt:new Date().toISOString()};
+  saveWorkflow(currentVehicle.stockNo, wf);
+  logWorkflowEvent(currentVehicle.registration, 'SEND_BACK', `Sent back to ${AC_WORKFLOW_STAGES[targetIdx].name}. Reason: ${reason}`, getCurrentUser().name);
+  writeAuditLog('sendback', currentVehicle.registration, `Sent back → ${AC_WORKFLOW_STAGES[targetIdx].name}`, `${currentVehicle.registration} ${currentVehicle.make} ${currentVehicle.model} · Reason: ${reason}`, getCurrentUser().name, 'normal');
+  sendNotification('sendback', {
+    toName:   AC_WORKFLOW_STAGES[targetIdx].assignedTo || 'Management',
+    reg:      currentVehicle.registration,
+    vehicle:  currentVehicle.make + ' ' + currentVehicle.model,
+    stage:    AC_WORKFLOW_STAGES[targetIdx].name,
+    fromName: getCurrentUser().name,
+    note:     'Vehicle sent back. Reason: ' + reason,
+    priority: 'Normal',
+    link:     'https://www.capeye.co.uk/workflow.html?stock=' + currentVehicle.stockNo,
+  });
+  closeModal('sendBackModal');
+  showToast('Sent back to '+AC_WORKFLOW_STAGES[targetIdx].name,'warning');
+  currentStageIdx = targetIdx;
+  loadVehicle(currentVehicle.stockNo);
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+/* ── PIPELINE TABLE ── */
+function renderPipeline() {
+  const search = (document.getElementById('pipeSearch').value||'').toLowerCase();
+  const fStage = document.getElementById('pipeStageFilter').value;
+  const rows = vehicles.filter(v => {
+    if (search && ![v.stockNo,v.registration,v.make,v.model].some(f=>f&&f.toLowerCase().includes(search))) return false;
+    if (fStage && v.workflowStage!==fStage) return false;
+    return true;
+  });
+  document.getElementById('pipe-count').textContent = rows.length+' vehicles';
+  document.getElementById('pipelineBody').innerHTML = rows.map(v => {
+    const wf = getWorkflow(v.stockNo);
+    const done = Object.keys(wf).map(Number).filter(n=>wf[n]&&wf[n].completed);
+    const stage = AC_WORKFLOW_STAGES.find(s=>s.name===v.workflowStage);
+    const color = stage ? stage.color : '#64748b';
+    const days = getDaysInStage(v.stageStarted);
+    const daysCls = days<=1?'#d1fae5':days<=3?'#fef3c7':'#fee2e2';
+    const daysText = days<=1?'#065f46':days<=3?'#92400e':'#991b1b';
+    const lastHo = done.length ? getHandover(v.stockNo, Math.max(...done)) : null;
+    return `<tr>
+      <td style="font-weight:700;color:var(--navy)">${v.stockNo}</td>
+      <td><span style="font-family:'IBM Plex Mono',monospace;font-weight:700;background:#f5c518;color:#000;padding:1px 7px;border-radius:3px;font-size:12px">${v.registration}</span>${v.urgent?'<span class="urgent-badge" style="margin-left:4px">URGENT</span>':''}</td>
+      <td>${v.make} ${v.model}</td>
+      <td style="color:var(--ink3)">${v.location||'—'}</td>
+      <td>${v.price?formatGBP(v.price):'<span style="color:var(--ink3)">—</span>'}</td>
+      <td><span class="stage-pill" style="background:${color}22;color:${color}">${v.workflowStage}</span></td>
+      <td><span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:${daysCls};color:${daysText}">${days}d</span></td>
+      <td style="color:var(--ink3);font-size:11px">${lastHo?'→ '+lastHo.toName:'—'}</td>
+      <td style="color:var(--ink3)">${done.length}/${AC_WORKFLOW_STAGES.length}</td>
+      <td><button class="btn btn-ghost" style="padding:4px 12px;font-size:11px" onclick="loadVehicle('${v.stockNo}');window.scrollTo({top:0,behavior:'smooth'})">Open →</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--ink3);padding:20px">No vehicles found</td></tr>';
+}
+
+
+/* ── PHOTO UPLOAD HANDLER ── */
+function initPhotoSlots() {
+  document.querySelectorAll('.photo-slot input[type=file]').forEach(function(input) {
+    input.addEventListener('change', function() {
+      var file = this.files[0];
+      if (!file) return;
+      var slot = this.closest('.photo-slot');
+      var preview = slot.querySelector('img.photo-preview');
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var dataUrl = e.target.result;
+        preview.src = dataUrl;
+        slot.classList.add('has-photo');
+        var key = input.id;
+        if (currentVehicle) {
+          // Try to upload to Firebase Storage, fall back to base64
+          if (typeof uploadPhotoFS === 'function') {
+            uploadPhotoFS(currentVehicle.stockNo, key, dataUrl, function(url) {
+              var wf = getWorkflow(currentVehicle.stockNo);
+              var sid = AC_WORKFLOW_STAGES[currentStageIdx].id;
+              if (!wf[sid]) wf[sid] = {};
+              wf[sid][key] = url;
+              saveWorkflow(currentVehicle.stockNo, wf);
+            });
+          } else {
+            var wf = getWorkflow(currentVehicle.stockNo);
+            var sid = AC_WORKFLOW_STAGES[currentStageIdx].id;
+            if (!wf[sid]) wf[sid] = {};
+            wf[sid][key] = dataUrl;
+            saveWorkflow(currentVehicle.stockNo, wf);
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+  document.querySelectorAll('.photo-clear').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      var slot = this.closest('.photo-slot');
+      var preview = slot.querySelector('img.photo-preview');
+      var input = slot.querySelector('input[type=file]');
+      preview.src = '';
+      slot.classList.remove('has-photo');
+      input.value = '';
+      var key = input.id;
+      if (currentVehicle) {
+        var wf = getWorkflow(currentVehicle.stockNo);
+        var sid = AC_WORKFLOW_STAGES[currentStageIdx].id;
+        if (wf[sid]) { delete wf[sid][key]; saveWorkflow(currentVehicle.stockNo, wf); }
+      }
+    });
+  });
+}
+
+function loadSavedPhotos(stageData) {
+  document.querySelectorAll('.photo-slot input[type=file]').forEach(function(input) {
+    var key = input.id;
+    if (stageData && stageData[key]) {
+      var slot = input.closest('.photo-slot');
+      var preview = slot.querySelector('img.photo-preview');
+      preview.src = stageData[key];
+      slot.classList.add('has-photo');
+    }
+  });
+}
+
+document.addEventListener("DOMContentLoaded", function() { init(); });
+</script>
+<script>
+// Last import badge
+(function(){
+  try {
+    var ts = Math.max(
+      parseInt(localStorage.getItem('ce_last_import_stock')||'0'),
+      parseInt(localStorage.getItem('ce_last_import_etrack')||'0')
+    );
+    var el = document.getElementById('lastImportBadge');
+    if (!el) return;
+    if (!ts) { el.textContent = 'No import yet'; return; }
+    var ago = Math.floor((Date.now()-ts)/3600000);
+    el.textContent = ago < 1 ? 'Imported < 1hr ago' : ago < 24 ? 'Imported '+ago+'hr ago' : 'Imported '+Math.floor(ago/24)+'d ago';
+    el.className = 'nav-import ' + (ago < 24 ? 'fresh' : 'stale');
+  } catch(e) {}
+})();
+</script>
+
+<!-- NOTIFICATION PANEL -->
+<div class="notif-overlay" id="notifOverlay" onclick="closeNotifPanel()"></div>
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-hdr">
+    <span class="notif-title"><i class="fas fa-bell"></i> Notifications</span>
+    <button onclick="markAllRead();renderNotifPanel()" style="background:none;border:none;font-size:11px;color:var(--ink3);cursor:pointer;font-family:inherit;font-weight:600">Mark all read</button>
+    <button onclick="closeNotifPanel()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--ink3);padding:2px 6px">&times;</button>
+  </div>
+  <div class="notif-list" id="notifList"></div>
+</div>
+<script>
+// ── NAV BELL ──────────────────────────────────────────────────────
+function updateBell() {
+  var count = getUnreadCount();
+  var badge = document.getElementById('bellBadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = count > 9 ? '9+' : count;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function openNotifPanel() {
+  document.getElementById('notifPanel').classList.add('open');
+  document.getElementById('notifOverlay').classList.add('open');
+  renderNotifPanel();
+  markAllRead();
+  setTimeout(updateBell, 300);
+}
+
+function closeNotifPanel() {
+  document.getElementById('notifPanel').classList.remove('open');
+  document.getElementById('notifOverlay').classList.remove('open');
+}
+
+function renderNotifPanel() {
+  var notifs = getMyNotifications();
+  var list = document.getElementById('notifList');
+  if (!notifs.length) {
+    list.innerHTML = '<div class="notif-empty"><i class="fas fa-bell-slash"></i>No notifications yet</div>';
+    return;
+  }
+  list.innerHTML = notifs.slice(0, 30).map(function(n) {
+    var ago = timeAgo(n.ts);
+    var typeLabel = { handover:'Handover', urgent:'Urgent', skip:'Skipped', sendback:'Sent Back', fault:'Fault' }[n.type] || n.type;
+    return '<div class="notif-item' + (n.read ? '' : ' unread') + '" onclick="window.location.href=\'' + (n.link||'workflow.html') + '\'">' +
+      '<div class="notif-item-hdr">' +
+      '<span class="notif-reg">' + n.reg + '</span>' +
+      '<span class="notif-type ' + n.type + '">' + typeLabel + '</span>' +
+      '</div>' +
+      '<div class="notif-body">' + n.vehicle + ' — ' + n.stage + (n.fromName ? ' · from ' + n.fromName : '') + '</div>' +
+      (n.note ? '<div class="notif-meta">"' + n.note.slice(0,60) + (n.note.length>60?'…':'') + '"</div>' : '') +
+      '<div class="notif-meta">' + ago + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function timeAgo(ts) {
+  var diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'hr ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+// Poll for new notifications every 60s
+setInterval(updateBell, 60000);
+document.addEventListener('DOMContentLoaded', function() { setTimeout(updateBell, 1000); });
+</script>
+</body>
+</html>
